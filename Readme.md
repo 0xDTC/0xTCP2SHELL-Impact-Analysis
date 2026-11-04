@@ -1,6 +1,6 @@
-# CVE-2026-98432 IMPACT ANALYSIS
+# TCP2SHELL IMPACT ANALYSIS
 
-Remote use-after-free in the Linux kernel's IPv4 TCP handshake | CVSS 3.1: 9.8 (kernel.org, CNA) | Distro ratings: 8.1 Important (Red Hat, SUSE, Amazon, Oracle)
+CVE-2026-98432 | Remote use-after-free in the Linux kernel's IPv4 TCP handshake | CVSS 3.1: 9.8 (kernel.org, CNA) | Distro ratings: 8.1 Important (Red Hat, SUSE, Amazon, Oracle)
 
 Data cut-off: 30 October 2026, 06:30 UTC. Things are still moving, so check NVD, CISA KEV, EPSS and your distro or vendor advisory again before you act on anything here.
 
@@ -10,7 +10,7 @@ Data cut-off: 30 October 2026, 06:30 UTC. Things are still moving, so check NVD,
 
 ### The situation at a glance
 
-- **What:** A use-after-free in the Linux kernel's IPv4 TCP handshake, tracked as CVE-2026-98432. When a TCP SYN carries IPv4 options (Record Route or Timestamp), the kernel keeps those options for the connection and can free them while another CPU is still using them. The result can be leaked kernel memory, memory corruption, a kernel panic or, according to the write-up published by the team that reported the bug, commands run as root. The bug has no public nickname, so this document uses the CVE number. It was reported by Xinyang Ge. The fix and the CVE share one title: "ipv4: free inet_opt and ireq_opt after an RCU grace period".
+- **What:** A use-after-free in the Linux kernel's IPv4 TCP handshake, tracked as CVE-2026-98432. When a TCP SYN carries IPv4 options (Record Route or Timestamp), the kernel keeps those options for the connection and can free them while another CPU is still using them. The result can be leaked kernel memory, memory corruption, a kernel panic or, according to the write-up published by the team that reported the bug, commands run as root. The bug has no public nickname. TCP2Shell is this analysis's own label for it, and every advisory uses the CVE number. It was reported by Xinyang Ge. The fix and the CVE share one title: "ipv4: free inet_opt and ireq_opt after an RCU grace period".
 - **Risk level:** CRITICAL for internet-facing Linux servers that accept inbound IPv4 TCP connections directly, above all those with multipath TCP (MPTCP) listeners. HIGH everywhere else. kernel.org, the CVE Numbering Authority (CNA), scores it 9.8 Critical (CVSS 3.1). Red Hat, SUSE, Amazon Linux and Oracle Linux rate it Important at 8.1. Ubuntu says Priority High, and Debian had set no urgency at cut-off.
 - **Impact:** Kernel heap memory can leak into the SYN-ACK that goes back to the attacker. Out-of-bounds kernel writes with potential control-flow corruption are possible, and so is a kernel panic or an oops. That is the CNA's scoring narrative. No login and no user interaction are needed, only an IPv4 route to a listening TCP socket. The reporters' write-up says a remote attacker can run arbitrary commands as root on a server with an MPTCP listener. The bug is server side only: outgoing client connections do not use the vulnerable path.
 - **Status:** Fixed upstream in Linux 7.3, 7.2.10, 6.18.56, 6.12.113, 6.6.159, 6.1.190, 5.15.223 and 5.10.272. There is no upstream fix for 5.4 and older or for end-of-life non-LTS lines such as 7.1, 7.0 and 6.19, so those depend on a vendor backport. The fix and its explanation were public on the netdev mailing list from 29 September 2026, 16 days before the CVE was published. Debian, Oracle Linux (UEK), several SUSE products, Amazon Linux 2023 (kernel6.12 and kernel6.18) and Azure Linux 3.0 ship fixed kernels. Ubuntu has fixes prepared but not released, and Red Hat has none. No exploitation in the wild had been reported at the time of writing, the reporters published no exploit code, and the CVE is not in CISA's Known Exploited Vulnerabilities catalog (KEV).
@@ -2179,7 +2179,7 @@ One item is open. The CVE text says `tcp_v6_reqsk_destructor()` has the same mig
 
 ```
 ===============================================================
-      CVE-2026-98432: REMOTE USE-AFTER-FREE IN THE LINUX KERNEL
+  TCP2SHELL (CVE-2026-98432): REMOTE USE-AFTER-FREE IN LINUX
      CVSS 3.1 9.8 (kernel.org) | Distros: 8.1 Important
 ===============================================================
 
@@ -2354,7 +2354,7 @@ MORE INFORMATION:
 ===============================================================
 
 Document Version: 1.0
-Last Updated: 30 October 2026
+Last Updated: 4 November 2026 (name only)
 Classification: TLP:CLEAR, public distribution
 ```
 
@@ -2424,7 +2424,7 @@ Use the incident to fix four things:
 ---
 
 **Document Version:** 1.0
-**Last Updated:** 30 October 2026
+**Last Updated:** 4 November 2026 (name added, facts unchanged since the data cut-off)
 **Data cut-off:** 30 October 2026, 06:30 UTC
 **Classification:** TLP:CLEAR, public distribution
 **Prepared by:** 0xDTC (TheSecureLancer)
