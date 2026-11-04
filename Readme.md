@@ -1,8 +1,18 @@
 # TCP2SHELL IMPACT ANALYSIS
 
-CVE-2026-98432 | Remote use-after-free in the Linux kernel's IPv4 TCP handshake | CVSS 3.1: 9.8 (kernel.org, CNA) | Distro ratings: 8.1 Important (Red Hat, SUSE, Amazon, Oracle)
+CVE-2026-98432 | Remote use-after-free in the Linux kernel's IPv4 TCP handshake | CVSS 3.1: 9.8 (kernel.org, CNA, and Red Hat) | SUSE, Amazon and Oracle: 8.1 Important | Ubuntu priority: critical
 
-Data cut-off: 30 October 2026, 06:30 UTC. Things are still moving, so check NVD, CISA KEV, EPSS and your distro or vendor advisory again before you act on anything here.
+Data cut-off: 4 November 2026, 14:00 UTC (version 1.1). Version 1.0 had a cut-off of 30 October 2026, 06:30 UTC. Things are still moving, so check NVD, CISA KEV, EPSS and your distro or vendor advisory again before you act on anything here.
+
+**What changed since version 1.0:**
+
+- Red Hat shipped fixed kernels for RHEL 8, 9 and 10 on 1 November and now rates the bug Critical, 9.8. Rocky Linux, AlmaLinux and Oracle Linux's Red Hat compatible kernel followed. Amazon Linux 2, EKS and Bottlerocket are fixed too.
+- Ubuntu raised its priority to critical, but its fixes were still in testing on 4 November.
+- Red Hat, AlmaLinux and AWS published packet-filter rules that drop IPv4 TCP packets carrying IP options. Red Hat says turning MPTCP off is not a complete mitigation.
+- Live patches now exist from SUSE and TuxCare, besides Oracle Ksplice.
+- Still no exploitation in the wild and still not in CISA KEV. The reporters' exploit code was still unpublished on 3 November. EPSS rose to 0.0076.
+- A maintainer posted the fix for the IPv6 sibling issue on 3 November, and it was still under review on 4 November.
+- National CERTs in the Netherlands, Canada, France and Hong Kong now name the CVE.
 
 ---
 
@@ -11,13 +21,13 @@ Data cut-off: 30 October 2026, 06:30 UTC. Things are still moving, so check NVD,
 ### The situation at a glance
 
 - **What:** A use-after-free in the Linux kernel's IPv4 TCP handshake, tracked as CVE-2026-98432. When a TCP SYN carries IPv4 options (Record Route or Timestamp), the kernel keeps those options for the connection and can free them while another CPU is still using them. The result can be leaked kernel memory, memory corruption, a kernel panic or, according to the write-up published by the team that reported the bug, commands run as root. The bug has no public nickname. TCP2Shell is this analysis's own label for it, and every advisory uses the CVE number. It was reported by Xinyang Ge. The fix and the CVE share one title: "ipv4: free inet_opt and ireq_opt after an RCU grace period".
-- **Risk level:** CRITICAL for internet-facing Linux servers that accept inbound IPv4 TCP connections directly, above all those with multipath TCP (MPTCP) listeners. HIGH everywhere else. kernel.org, the CVE Numbering Authority (CNA), scores it 9.8 Critical (CVSS 3.1). Red Hat, SUSE, Amazon Linux and Oracle Linux rate it Important at 8.1. Ubuntu says Priority High, and Debian had set no urgency at cut-off.
+- **Risk level:** CRITICAL for internet-facing Linux servers that accept inbound IPv4 TCP connections directly, above all those with multipath TCP (MPTCP) listeners. HIGH everywhere else. kernel.org, the CVE Numbering Authority (CNA), scores it 9.8 Critical (CVSS 3.1), and Red Hat now agrees. SUSE, Amazon Linux and Oracle Linux still rate it Important at 8.1. Ubuntu raised its priority to critical on 3 November, and Debian has set no urgency.
 - **Impact:** Kernel heap memory can leak into the SYN-ACK that goes back to the attacker. Out-of-bounds kernel writes with potential control-flow corruption are possible, and so is a kernel panic or an oops. That is the CNA's scoring narrative. No login and no user interaction are needed, only an IPv4 route to a listening TCP socket. The reporters' write-up says a remote attacker can run arbitrary commands as root on a server with an MPTCP listener. The bug is server side only: outgoing client connections do not use the vulnerable path.
-- **Status:** Fixed upstream in Linux 7.3, 7.2.10, 6.18.56, 6.12.113, 6.6.159, 6.1.190, 5.15.223 and 5.10.272. There is no upstream fix for 5.4 and older or for end-of-life non-LTS lines such as 7.1, 7.0 and 6.19, so those depend on a vendor backport. The fix and its explanation were public on the netdev mailing list from 29 September 2026, 16 days before the CVE was published. Debian, Oracle Linux (UEK), several SUSE products, Amazon Linux 2023 (kernel6.12 and kernel6.18) and Azure Linux 3.0 ship fixed kernels. Ubuntu has fixes prepared but not released, and Red Hat has none. No exploitation in the wild had been reported at the time of writing, the reporters published no exploit code, and the CVE is not in CISA's Known Exploited Vulnerabilities catalog (KEV).
+- **Status:** Fixed upstream in Linux 7.3, 7.2.10, 6.18.56, 6.12.113, 6.6.159, 6.1.190, 5.15.223 and 5.10.272. The 7.2 line reached end of life with 7.2.15 on 1 November. There is no upstream fix for 5.4 and older or for end-of-life non-LTS lines such as 7.1, 7.0 and 6.19, so those depend on a vendor backport. The fix and its explanation were public on the netdev mailing list from 29 September 2026, 16 days before the CVE was published. Red Hat shipped fixed kernels for RHEL 8, 9 and 10 on 1 November, and Rocky Linux, AlmaLinux and Oracle Linux's Red Hat compatible kernel followed. Debian, Oracle Linux (UEK), SUSE, Amazon Linux 2 and 2023, and Azure Linux 3.0 ship fixed kernels too. Ubuntu had released no fix on 4 November: its generic kernels were in testing (the -proposed pocket), and its cloud kernel flavours were still pending. No exploitation in the wild has been reported, the reporters' exploit code was still unpublished on 3 November, and the CVE is not in CISA's Known Exploited Vulnerabilities catalog (KEV).
 - **Who's safe:** Hosts that run a fixed kernel and have rebooted into it. Installing the package is not enough, because the running kernel stays vulnerable until the reboot. Kernels older than 4.4 are not affected, and Red Hat says RHEL 6 and 7 do not contain the vulnerable code. Hosts with no listening TCP port that untrusted IPv4 networks can reach are less exposed, and so are IPv6-only services.
-- **Who's at risk:** Any Linux server on a kernel from 4.4 up to the fixed versions that has a listening TCP socket an outsider can reach over IPv4. The path the reporters demonstrated needs an MPTCP listener. Upstream kernels enable MPTCP by default, and programs whose main module declares go 1.24 or later open MPTCP listeners by default (Caddy, Traefik and Kubernetes are among the 18 Go servers checked, see Software that opens MPTCP listeners). Containers and Kubernetes nodes are in scope because they share the host kernel. Hosts on releases without a fix are worst off: Ubuntu 20.04, 18.04 and 16.04 are marked "needed", Debian stretch and buster are end of life and unfixed, and Amazon Linux 2 is end of support with its kernels pending. RHEL 8, 9 and 10 have no fix yet, and Red Hat states that no mitigation meets its criteria.
+- **Who's at risk:** Any Linux server on a kernel from 4.4 up to the fixed versions that has a listening TCP socket an outsider can reach over IPv4. The path the reporters demonstrated needs an MPTCP listener. Upstream kernels enable MPTCP by default, and programs whose main module declares go 1.24 or later open MPTCP listeners by default (Caddy, Traefik and Kubernetes are among the 18 Go servers checked, see Software that opens MPTCP listeners). Containers and Kubernetes nodes are in scope because they share the host kernel. Hosts on releases without a released fix are worst off: every Ubuntu release (22.04 and later in testing, 20.04, 18.04 and 16.04 marked "needed"), Debian stretch and buster (end of life), OpenShift 4 (RHCOS still listed as affected) and CentOS Stream 9 and 10.
 
-*Sources: kernel.org CVE record (CNA) and ChangeLog files, NVD, CISA KEV feed, the netdev mailing list, the reporters' write-up, Go security team announcement, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux and Oracle Linux security pages, Microsoft update guide (Azure Linux), Go 1.24 release notes*
+*Sources: kernel.org CVE record (CNA), ChangeLog files and releases page, NVD, CISA KEV feed, the netdev mailing list, the reporters' write-up, Go security team announcement, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux, Oracle Linux, Rocky Linux and AlmaLinux security pages, Red Hat bulletin RHSB-2026-016, Canonical blog (2 November 2026), AWS bulletin 2026-160-AWS, Microsoft update guide (Azure Linux), Go 1.24 release notes*
 
 ### What this means for your organization
 
@@ -30,9 +40,9 @@ A host is exposed when it runs a kernel from 4.4 up to the fixed versions and ha
 - Dual-stack listeners. An IPv6 socket bound to `::` without `IPV6_V6ONLY` also takes IPv4 connections, and the kernel handles those with the IPv4 code. Native IPv6 connections don't take the first path, because the IPv6 code duplicates the options.
 - Request migration. Setting `net.ipv4.tcp_migrate_req=1`, or loading a `BPF_SK_REUSEPORT_SELECT_OR_MIGRATE` program, opens a second path to the same bug, because the cloned and old request sockets share the same options.
 
-Some services are reached from the internet only through a proxy that terminates TCP, such as the Cloudflare proxy, AWS ALB, CloudFront or any reverse proxy. The attacker's IPv4 options don't reach the origin kernel in that setup. This is our reasoning, not a vendor statement, and it holds only if the origin isn't reachable directly, so lock the origin firewall to the proxy's IP ranges. The proxy's own kernel is the proxy operator's problem. Services published only through outbound tunnels (for example Cloudflare Tunnel) have no internet-facing listener. Layer 4 passthrough load balancers (AWS NLB, Google Cloud passthrough network load balancers) forward packets, and no documentation says they strip IP options, so treat services behind them as exposed. The same goes for cloud networks: no AWS, Google Cloud or Azure documentation says their virtual networks drop or strip IPv4 options, and security groups and network ACLs can't match IP options. Treat the cloud network as unknown, not as a filter.
+Some services are reached from the internet only through a proxy that terminates TCP, such as the Cloudflare proxy, AWS ALB, CloudFront or any reverse proxy. The attacker's IPv4 options don't reach the origin kernel in that setup. For its own services, AWS's bulletin says customers behind ALB, CloudFront, API Gateway or an NLB TLS listener "do not receive TCP connections from untrusted sources directly when following best practices", and that Global Accelerator drops every IPv4 packet that carries IP options. The reasoning holds only if the origin isn't reachable directly, so lock the origin firewall to the proxy's IP ranges. The proxy's own kernel is the proxy operator's problem. Services published only through outbound tunnels (for example Cloudflare Tunnel) have no internet-facing listener. Layer 4 passthrough load balancers (AWS NLB with TCP listeners, Google Cloud passthrough network load balancers) forward packets, and no documentation says they strip IP options, so treat services behind them as exposed. The same goes for cloud networks: no AWS, Google Cloud or Azure documentation says their virtual networks drop or strip IPv4 options, and security groups and network ACLs can't match IP options. Treat the cloud network as unknown, not as a filter.
 
-One reading you'll see needs a footnote: that only MPTCP hosts are at risk. The reporters' write-up names an MPTCP listener as the target. It doesn't explain why MPTCP is needed and names no tested kernel versions or distributions. The Go security team agrees the demonstrated exploit requires an MPTCP listener, but says the bug itself is not MPTCP specific. Turning MPTCP off closes the demonstrated path and nothing more, so it is a stopgap and not a fix.
+One reading you'll see needs a footnote: that only MPTCP hosts are at risk. The reporters' write-up names an MPTCP listener as the target. It doesn't explain why MPTCP is needed and names no tested kernel versions or distributions. The Go security team agrees the demonstrated exploit requires an MPTCP listener, but says the bug itself is not MPTCP specific. Red Hat's bulletin RHSB-2026-016 (last updated 4 November) goes further: having MPTCP enabled is not a precondition, and turning it off "is not a complete mitigation". Turning MPTCP off closes the demonstrated path and nothing more, so it is a stopgap and not a fix.
 
 If an attacker gets this working against one of your servers, they can:
 
@@ -44,11 +54,11 @@ If an attacker gets this working against one of your servers, they can:
 
 The quiet part is the retry. A lost race only fails the handshake, so an attacker can retry indefinitely, and a successful exploit is designed not to crash. Clean kernel logs prove nothing.
 
-Real-world context: The fix was public on the netdev mailing list from 29 September 2026, and the commit message of its first version explains the use-after-free. That is 16 days before the CVE was published and 28 days before the reporters' write-up. The reporters' write-up (27 October 2026, updated 28 October 2026) describes remote command execution as root against servers with an MPTCP listener. Its proof of concept took 48 minutes to leak a kernel pointer and another 5 minutes to reach command execution. No exploit code was published and no release was announced. No exploitation in the wild has been reported. Rapid7 lists `exploited_in_wild` as false, Wiz and Feedly show no evidence, and the CVE is not in CISA KEV. The EPSS score is 0.00388 (32.8th percentile) as of 29 October 2026. The CNA and the distros disagree on severity, 9.8 against 8.1 (see Severity metrics).
+Real-world context: The fix was public on the netdev mailing list from 29 September 2026, and the commit message of its first version explains the use-after-free. That is 16 days before the CVE was published and 28 days before the reporters' write-up. The reporters' write-up (27 October 2026, updated 28 October 2026) describes remote command execution as root against servers with an MPTCP listener. Its proof of concept took 48 minutes to leak a kernel pointer and another 5 minutes to reach command execution. On 3 November The Hacker News reported that the reporters' exploit code was still unpublished. No exploitation in the wild has been reported. Rapid7 lists `exploited_in_wild` as false, Wiz and Feedly show no evidence, Previdian says "No Exploitation Yet", AWS has "no evidence" of use, Fortinet lists it as not known exploited, and the CVE is not in CISA KEV. The EPSS score rose from 0.00388 on 29 October to 0.0076 (55.3rd percentile) on 3 November. Red Hat moved its own score to the CNA's 9.8 by 4 November, while SUSE, Amazon Linux and Oracle Linux stay at 8.1 (see Severity metrics).
 
-Eleven GitHub repositories named after the CVE appeared on 29 and 30 October 2026. None is verified. Most describe themselves as checkers, mitigations, audits or a livepatch, and one claims a race trigger. Running unknown proof-of-concept code is a common way to get compromised, so leave them alone. No national CERT advisory naming the CVE was found on 30 October 2026, though some feeds covered only the last few days, so that is weak evidence.
+A GitHub search on 4 November found 71 repositories that mention the CVE, up from 11 on 30 October. Their descriptions include checkers, mitigations, a trigger that says it does no code execution, and a "lab root-shell kit" that says it is not a stock remote exploit. None is verified. Running unknown proof-of-concept code is a common way to get compromised, so leave them alone. National CERTs in the Netherlands (NCSC-2026-0461), Canada (AV26-1108) and France (CERTFR-2026-AVI-1432) issued advisories on 30 October, and HKCERT followed on 3 November.
 
-*Sources: kernel source (net/ipv4 and net/ipv6), kernel.org CVE record (CNA), kernel documentation (MPTCP and IP sysctls), the reporters' write-up, Go security team announcement, Go issue 82717, Rapid7, Wiz, Feedly, CISA KEV feed, FIRST EPSS API, GitHub repository search, CERT-Bund, CERT-FR, NCSC UK, NCSC NL, CCCS, JPCERT and CERT-In lists, AWS, Google Cloud, Azure and Cloudflare documentation*
+*Sources: kernel source (net/ipv4 and net/ipv6), kernel.org CVE record (CNA), kernel documentation (MPTCP and IP sysctls), the reporters' write-up, Go security team announcement, Go issue 82717, Rapid7, Wiz, Feedly, Previdian, Fortinet PSIRT, AWS bulletin 2026-160-AWS, CISA KEV feed, FIRST EPSS API, Red Hat, Amazon Linux and Oracle Linux CVE pages, GitHub repository search, NCSC-NL, CCCS, CERT-FR and HKCERT advisories, AWS, Google Cloud, Azure and Cloudflare documentation*
 
 ### Immediate actions required
 
@@ -62,8 +72,8 @@ DAY 1: Patch and reboot
 
 1. Install the vendor kernel that has the fix (see Where the fix comes from). Patch internet-facing hosts with MPTCP listeners or Go services first, then every other host that accepts inbound IPv4 TCP.
 2. If you suspect a host, capture memory and volatile state before you reboot it. A kernel exploit can leave no file on disk, and a reboot destroys memory evidence.
-3. Reboot every patched host. This is not optional. Only Oracle Ksplice is a confirmed live patch route, and none was found for Ubuntu Livepatch, RHEL kpatch, SUSE live patching or Amazon Linux. After the reboot, run `uname -r` again and confirm the fixed kernel is the one running.
-4. If a reboot has to wait, drop inbound IPv4 TCP packets that carry IP options at the host firewall or the network edge, and turn MPTCP off by setting `net.mptcp.enabled` to 0 and then restarting the services that listen. Both are partial. A Go team member says on Go issue 82717 that dropping those packets "may suffice", which is unconfirmed, and turning MPTCP off leaves plain TCP exposed. The commands, limits and rollback are under IMMEDIATE ACTIONS in the PROTECTION ROADMAP.
+3. Reboot every patched host. This is not optional unless you use a live patch: Oracle Ksplice, SUSE live patching (SLE 12 SP5 and 15 SP4 to SP7) and TuxCare KernelCare (Debian 13 at least) have them. None was found for Ubuntu Livepatch, RHEL kpatch or Amazon Linux. After the reboot, run `uname -r` again and confirm the fixed kernel is the one running.
+4. If a reboot has to wait, drop inbound IPv4 TCP packets that carry IP options at the host firewall or the network edge, and turn MPTCP off by setting `net.mptcp.enabled` to 0 and then restarting the services that listen. Both are partial. Red Hat, AlmaLinux and AWS now publish packet-filter rules, and Red Hat prefers the filter to turning MPTCP off. Red Hat also says the filter reduces exposure but "cannot fully prevent" exploitation. Red Hat and a CIQ kernel engineer both note that it misses traffic between pods or containers on the same host. Turning MPTCP off leaves plain TCP exposed. The commands, limits and rollback are under IMMEDIATE ACTIONS in the PROTECTION ROADMAP.
 
 DAY 2: Look for compromise
 
@@ -76,24 +86,24 @@ DAY 2: Look for compromise
 
 Financial risk:
 
-- No confirmed compromise had been reported at cut-off, so there is no incident cost to quote for this bug.
-- The fix itself is a vendor kernel update and a reboot. The costly cases are hosts on releases that have no fix yet: Debian stretch and buster (end of life, unfixed), Ubuntu 20.04, 18.04 and 16.04 (marked "needed"), and Amazon Linux 2 (end of support, kernels pending). Debian bullseye is fixed only through Freexian ELTS.
+- No confirmed compromise has been reported, so there is no incident cost to quote for this bug.
+- The fix itself is a vendor kernel update and a reboot. The costly cases are hosts on releases that have no released fix yet: every Ubuntu release (22.04 and later in testing, 20.04, 18.04 and 16.04 marked "needed") and Debian stretch and buster (end of life). Debian bullseye is fixed only through Freexian ELTS.
 - Finding every host is the hidden cost. A machine image or a managed node pool can carry an old kernel into every new instance.
 
 Operational risk:
 
 - Every fix needs a reboot, so every service on the host restarts. Plan the windows.
-- Managed platforms may lag. At cut-off the latest AKS node image (202610.16.1, 27 October 2026) and the latest Bottlerocket OS (v1.68.0, 27 October 2026) still carried kernels from before the fix, so those clusters wait on the provider.
+- Managed platforms may lag. On 30 October the latest AKS node image (202610.16.1) and Bottlerocket OS (v1.68.0) still carried kernels from before the fix. Bottlerocket v1.68.1 (2 November) has the fix, and AKS rolled out node image 202610.23.0, whose kernel wasn't confirmed.
 - The stopgaps have costs. Hosts that use CIPSO labels (NetLabel, multi-level security) carry IP options on purpose, so the packet drop can break them: test before you enforce. RFC 7126 recommends dropping Record Route and Timestamp options by default, so legitimate internet traffic with them is rare. The rules aren't persistent. On a host that forwards traffic to containers the same hook sees that traffic too, and CNI plugins with eBPF datapaths can steer packets past the host's netfilter hooks.
 - Turning MPTCP off only affects sockets created afterwards, so existing listeners keep accepting MPTCP until their service restarts. Every new container network namespace starts with MPTCP on again.
-- Red Hat states that no mitigation meets its criteria for this CVE, and the Go security team calls disabling MPTCP program by program "a fragile mitigation". The best fix is a patched kernel.
+- Red Hat now publishes a packet-filter mitigation, and says it reduces exposure but can't fully prevent exploitation. The Go security team calls disabling MPTCP program by program "a fragile mitigation", and Canonical calls updates "the only appropriate mitigation". The best fix is a patched kernel.
 - Cloudflare WAF rules do nothing here, because they work on HTTP and can't see IP options. Magic Transit customers can match packets with options at Cloudflare's edge with the Network Firewall (Magic Firewall) fields `ip.hdr_len` and `ip.opt.type`. Cloud security groups and network ACLs can't.
 
 Legal risk:
 
 - If a compromised service holds personal data, breach notification clocks start when you become aware of the breach. The deadlines by jurisdiction are in COMPLIANCE & LEGAL REQUIREMENTS.
 
-*Sources: Red Hat, Ubuntu, Debian, Amazon Linux, SUSE and Oracle Linux security pages, Debian ELTS (Freexian) tracker, AKS and Bottlerocket release notes, Go security team announcement, RFC 7126, kernel.org documentation, Cloudflare Network Firewall documentation*
+*Sources: Red Hat, Ubuntu, Debian, Amazon Linux, SUSE and Oracle Linux security pages, Red Hat bulletin RHSB-2026-016, Canonical blog (2 November 2026), Debian ELTS (Freexian) tracker, AKS and Bottlerocket release notes, Go security team announcement, RFC 7126, kernel.org documentation, Cloudflare Network Firewall documentation*
 
 ---
 
@@ -103,15 +113,15 @@ Legal risk:
 
 | Metric | Rating | What it means |
 | --- | --- | --- |
-| **Overall risk** | CRITICAL for exposed internet-facing hosts, HIGH elsewhere | kernel.org (the CNA) scores it 9.8 Critical (CVSS 3.1). Red Hat, SUSE, Amazon Linux and Oracle Linux score it 8.1 and call it Important. Ubuntu says Priority High. Other sources are in the table below |
-| **Attack complexity** | LOW per the CNA, HIGH per the distros | The CNA vector is AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H: network, low complexity. Red Hat scores AC:H. The split is explained under the second table. The reporters' proof of concept took 48 minutes to leak a kernel pointer and another 5 minutes to reach command execution |
+| **Overall risk** | CRITICAL for exposed internet-facing hosts, HIGH elsewhere | kernel.org (the CNA) and Red Hat score it 9.8 Critical (CVSS 3.1). SUSE, Amazon Linux and Oracle Linux score it 8.1 and call it Important. Ubuntu's priority is critical. Other sources are in the table below |
+| **Attack complexity** | LOW per the CNA and Red Hat, HIGH per SUSE, Amazon and Oracle | The CNA vector is AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H: network, low complexity. Red Hat moved from AC:H to AC:L. The split is explained under the second table. The reporters' proof of concept took 48 minutes to leak a kernel pointer and another 5 minutes to reach command execution |
 | **Authentication needed** | NONE | PR:N. An unauthenticated remote peer that can reach a listening TCP socket over IPv4 is enough |
 | **User interaction** | NONE | UI:N. Nobody has to click anything |
 | **Reach** | SERVER SIDE ONLY | The code runs for incoming connections to listening sockets. Outgoing client connections don't use it. Native IPv6 connections avoid the first path, but IPv4 connections that arrive at a dual-stack IPv6 socket don't |
-| **Patch available** | YES for every maintained upstream line | Fixed releases came out from 11 October 2026 (7.2.10 and 6.18.56), the other LTS lines followed on 15 October 2026, and 7.3 shipped on 18 October 2026. Nothing upstream for 5.4 and older or for end-of-life non-LTS lines. Vendors differ (see Where the fix comes from) |
-| **Active exploitation** | NOT REPORTED IN THE WILD | The reporters' write-up describes root command execution against servers with an MPTCP listener, and the reporters published no exploit code. Eleven GitHub repositories named after the CVE are unverified. Not in CISA KEV |
-| **EPSS** | 0.00388 (32.8th percentile) | Reading of 29 October 2026 |
-| **NVD record** | RECEIVED, NO NVD SCORE | NVD received the record on 15 October 2026 at 13:17 UTC. The page shows the CNA's 9.8 and no NVD score |
+| **Patch available** | YES for every maintained upstream line | Fixed releases came out from 11 October 2026 (7.2.10 and 6.18.56), the other LTS lines followed on 15 October 2026, and 7.3 shipped on 18 October 2026. Nothing upstream for 5.4 and older or for end-of-life non-LTS lines, and 7.2 reached end of life with 7.2.15 on 1 November. Vendors differ (see Where the fix comes from) |
+| **Active exploitation** | NOT REPORTED IN THE WILD | The reporters' write-up describes root command execution against servers with an MPTCP listener, and the reporters' exploit code was still unpublished on 3 November. Rapid7, Previdian, AWS and Fortinet report no exploitation. The 71 GitHub repositories that mention the CVE are unverified. Not in CISA KEV (catalog 2026.11.03) |
+| **EPSS** | 0.0076 (55.3rd percentile) | Reading of 3 November 2026, up from 0.00388 on 29 October |
+| **NVD record** | RECEIVED, NO NVD SCORE | NVD received the record on 15 October 2026 at 13:17 UTC and last changed it on 3 November. The page shows the CNA's 9.8 and no NVD score |
 
 Ratings by source:
 
@@ -119,36 +129,36 @@ Ratings by source:
 | --- | --- | --- |
 | kernel.org (CNA) | CVSS 3.1 9.8 Critical | Vector AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H. Added to the CVE record on 24 October 2026 |
 | NVD | Status "Received" | No NVD score. The page shows the CNA's 9.8 |
-| Red Hat | Important, CVSS 3.1 8.1 | AV:N/AC:H (draft). CWE-825 |
-| SUSE | important, CVSS 3.1 8.1, CVSS 4.0 9.2 | The only CVSS 4.0 score in this table |
-| Amazon Linux | Important, CVSS 8.1 | ALAS2023-2026-3251 and ALAS2023-2026-3335 |
-| Oracle Linux | Important, CVSS 8.1 | Preliminary. ELSA-2026-500397, ELSA-2026-500398 and ELSA-2026-500399 for UEK |
-| Ubuntu | Priority High | No Ubuntu Security Notice yet |
+| Red Hat | Critical, CVSS 3.1 9.8 | AV:N/AC:L on 4 November. It was Important 8.1 (AC:H, draft) on 30 October. CWE-825 |
+| SUSE | important, CVSS 3.1 8.1, CVSS 4.0 9.2 | Unchanged on 4 November. The only CVSS 4.0 score in this table |
+| Amazon Linux | Important, CVSS 8.1 | ALAS2023-2026-3251, -3335 and -3365, ALAS2-2026-4065 |
+| Oracle Linux | Important, CVSS 8.1 | Preliminary. UEK and Red Hat compatible kernel errata (see Where the fix comes from) |
+| Ubuntu | Priority critical | Raised from High on 3 November. No Ubuntu Security Notice yet |
 | Debian | Urgency not yet assigned | Fixed kernels are out (see Where the fix comes from) |
 | GitHub advisory GHSA-qp6h-4hvh-qqqc | Critical 9.8 | Unreviewed |
-| EPSS | 0.00388 (32.8th percentile) | 29 October 2026 |
-| CISA KEV | Not listed | Catalog 2026.10.29 |
+| EPSS | 0.0076 (55.3rd percentile) | 3 November 2026, up from 0.00388 on 29 October |
+| CISA KEV | Not listed | Catalog 2026.11.03 |
 
-The 9.8 versus 8.1 split comes down to attack complexity. kernel.org says both racing sides are attacker-induced, so it scores AC:L. The distros score the race as hard, AC:H. The reporters' write-up says a lost race only fails the handshake and does not crash the system, so an attacker can keep retrying.
+The 9.8 versus 8.1 split comes down to attack complexity. kernel.org says both racing sides are attacker-induced, so it scores AC:L, and Red Hat now agrees. SUSE, Amazon Linux and Oracle Linux still score the race as hard, AC:H. The reporters' write-up says a lost race only fails the handshake and does not crash the system, so an attacker can keep retrying.
 
-You may see 5.9 quoted. Some third party pages (Wiz, Feedly, a table in The Hacker News) show it without a clear source, and no current vendor page does. Don't use it as a vendor score.
+You may see 5.9 quoted. BleepingComputer (30 October) gave it as Red Hat's score, and The Hacker News (3 November) says it was Red Hat's first rating, Moderate, before Red Hat raised it. Red Hat's page showed 8.1 on 30 October and shows 9.8 now. Don't use 5.9 as a current score.
 
-My read: treat it as critical for internet-facing Linux servers that accept inbound IPv4 TCP connections directly, above all those with MPTCP listeners, and as high everywhere else. The reporters describe root command execution against an MPTCP listener, the CNA scores it 9.8, and the fix has been public since 29 September 2026. Against that, the reporters published no exploit code, nobody has reported exploitation, the distros call the race hard, and nobody has publicly shown code execution without an MPTCP listener. Hosts that only an internal network can reach stay at high, because anyone already inside that network is a possible attacker.
+My read: treat it as critical for internet-facing Linux servers that accept inbound IPv4 TCP connections directly, above all those with MPTCP listeners, and as high everywhere else. The reporters describe root command execution against an MPTCP listener, the CNA and now Red Hat score it 9.8, and the fix has been public since 29 September 2026. Against that, the reporters' exploit code was still unpublished on 3 November, nobody has reported exploitation, SUSE, Amazon and Oracle still call the race hard, and nobody has publicly shown code execution without an MPTCP listener. Hosts that only an internal network can reach stay at high, because anyone already inside that network is a possible attacker.
 
-*Sources: kernel.org CVE record (CNA), NVD, Red Hat, SUSE, Amazon Linux, Oracle Linux, Ubuntu and Debian CVE pages, GitHub advisory database, FIRST EPSS API, CISA KEV feed, the reporters' write-up, Wiz, Feedly, The Hacker News*
+*Sources: kernel.org CVE record (CNA), NVD, Red Hat, SUSE, Amazon Linux, Oracle Linux, Ubuntu and Debian CVE pages, GitHub advisory database, FIRST EPSS API, CISA KEV feed, Rapid7, Previdian, AWS bulletin 2026-160-AWS, Fortinet PSIRT, GitHub repository search, the reporters' write-up, Wiz, Feedly, BleepingComputer (30 October 2026), The Hacker News (29 October and 3 November 2026)*
 
 ### Affected versions: quick lookup
 
-| Kernel line | Status on 30 October 2026 | Affected releases | Fixed in | Released | Latest on kernel.org |
+| Kernel line | Status on 4 November 2026 | Affected releases | Fixed in | Released | Latest on kernel.org |
 | --- | --- | --- | --- | --- | --- |
-| 7.3 | Mainline | Before 7.3-rc7 | 7.3-rc7, then 7.3 | 12 October 2026 (rc7), 18 October 2026 (7.3) | 7.3 |
-| 7.2 | Stable | 7.2 to 7.2.9 | 7.2.10 | 11 October 2026 | 7.2.13 |
-| 6.18 | LTS | 6.18 to 6.18.55 | 6.18.56 | 11 October 2026 | 6.18.59 |
-| 6.12 | LTS | 6.12 to 6.12.112 | 6.12.113 | 15 October 2026 | 6.12.114 |
-| 6.6 | LTS | 6.6 to 6.6.158 | 6.6.159 | 15 October 2026 | 6.6.160 |
-| 6.1 | LTS | 6.1 to 6.1.189 | 6.1.190 | 15 October 2026 | 6.1.190 |
-| 5.15 | LTS, end of life projected for December 2026 | 5.15 to 5.15.222 | 5.15.223 | 15 October 2026 | 5.15.223 |
-| 5.10 | LTS, end of life projected for December 2026 | 5.10 to 5.10.271 | 5.10.272 | 15 October 2026 | 5.10.272 |
+| 7.3 | Stable (7.4-rc1 is mainline since 1 November) | Before 7.3-rc7 | 7.3-rc7, then 7.3 | 12 October 2026 (rc7), 18 October 2026 (7.3) | 7.3.1 |
+| 7.2 | End of life since 7.2.15 (1 November 2026) | 7.2 to 7.2.9 | 7.2.10 | 11 October 2026 | 7.2.15, the last |
+| 6.18 | LTS | 6.18 to 6.18.55 | 6.18.56 | 11 October 2026 | 6.18.60 |
+| 6.12 | LTS | 6.12 to 6.12.112 | 6.12.113 | 15 October 2026 | 6.12.115 |
+| 6.6 | LTS | 6.6 to 6.6.158 | 6.6.159 | 15 October 2026 | 6.6.161 |
+| 6.1 | LTS | 6.1 to 6.1.189 | 6.1.190 | 15 October 2026 | 6.1.191 |
+| 5.15 | LTS, end of life projected for December 2026 | 5.15 to 5.15.222 | 5.15.223 | 15 October 2026 | 5.15.224 |
+| 5.10 | LTS, end of life projected for December 2026 | 5.10 to 5.10.271 | 5.10.272 | 15 October 2026 | 5.10.273 |
 | 5.4 and older, back to 4.4 | Not among the lines kernel.org maintains | All | None upstream, depends on the vendor backport | n/a | n/a |
 | End-of-life non-LTS lines (for example 7.1, 7.0, 6.19) | End of life | All | None upstream, depends on the vendor backport | n/a | n/a |
 | Before 4.4 | Not affected | None | n/a | n/a | n/a |
@@ -157,7 +167,7 @@ Two things to know about this table. First, the ranges follow from the commit th
 
 The bug entered with commit 079096f103fa ("tcp/dccp: install syn_recv requests into ehash table"), authored on 2 October 2015 and first released in Linux 4.4 in January 2016. Kernels before 4.4 are not affected. The request migration path comes from commit c905dee62232 ("tcp: Migrate TCP_NEW_SYN_RECV requests at retransmitting SYN+ACKs."), authored on 12 June 2021 and first released in Linux 5.14. The mainline fix is commit e3f33b0a1d89, committed on 5 October 2026. It makes two one-line changes, a `kfree_rcu()` call in `inet_sock_destruct()` and another in `tcp_v4_reqsk_destructor()`. It carried no "Cc: stable" tag, yet every maintained line got it.
 
-One related gap is still open. The CVE text says `tcp_v6_reqsk_destructor()` has the same migration problem with `ipv6_opt`, which only CALIPSO sets, and that a separate patch will fix it. As of 30 October 2026 there is no maintainer patch and no CVE for it. A third party proposed a fix on the netdev list on 19 October 2026 (secondary source).
+One related gap is still open. The CVE text says `tcp_v6_reqsk_destructor()` has the same migration problem with `ipv6_opt`, which only CALIPSO sets, and that a separate patch will fix it. A third party proposed a fix on the netdev list on 19 October 2026. On 3 November the networking maintainer Eric Dumazet posted his own, "tcp: ipv6: free ireq->ipv6_opt after an RCU grace period", which had three Reviewed-by tags but wasn't applied by 4 November, 14:00 UTC. He calls the issue untriggered and only plausible. Three more patches on related IPv6 lifetimes were under review at the same time, and an automated review on 4 November said `ireq->pktopts` is still freed without RCU on migration. None of this has a CVE yet.
 
 Quick status check:
 
@@ -179,35 +189,36 @@ ss -Mlnp
 - Anything `ss -Mlnp` lists is an MPTCP listener, the path the reporters demonstrated.
 - Containers have no kernel of their own, so run `uname -r` on the node. The MPTCP setting is per network namespace and every new one starts at 1, so a host setting doesn't carry into containers. Run the socket check inside each container's namespace too. The full assessment steps are in AM I AFFECTED? SELF-ASSESSMENT.
 
-*Sources: kernel.org ChangeLog files and releases page, kernel.org CVE record (CNA), kernel source commit history, kernel documentation (MPTCP and IP sysctls), the netdev mailing list, Ubuntu CVE tracker*
+*Sources: kernel.org ChangeLog files and releases page (rechecked on 4 November 2026), kernel.org CVE record (CNA), kernel source commit history, kernel documentation (MPTCP and IP sysctls), the netdev mailing list and its marc.info archive (19 October and 3 to 4 November 2026), Ubuntu CVE tracker*
 
 ### Where the fix comes from
 
 Two rules decide whether you are fixed. First, a fix only counts once the host has rebooted into it. Second, every vendor ships its own build under its own version numbers, so the table gives each vendor's fixed package. "Inferred" means we compared the vendor's kernel version with the upstream fixed versions, and no vendor notice names the CVE. "Pending" means the vendor has no released fix yet.
 
-| Platform | Status at cut-off | Fixed package or version | Notes |
+| Platform | Status on 4 November 2026 | Fixed package or version | Notes |
 | --- | --- | --- | --- |
-| Debian | Fixed for bookworm, trixie, forky and sid | bookworm `linux` 6.1.190-1 (DLA-4841-1, 17 October 2026), bookworm `linux-6.12` 6.12.113-1~deb12u1 (DLA-4850-1, 22 October 2026), trixie 6.12.113-1 (DSA-6568-1, 16 October 2026), forky 7.2.12-1, sid 7.2.13-1 | bullseye is fixed only through Freexian ELTS: 5.10.272-1 (ELA-1846-1) and `linux-6.1` 6.1.190-1~deb11u1 (ELA-1850-1). stretch and buster are unfixed and end of life. Debian had set no urgency |
-| Ubuntu | Pending, no Ubuntu Security Notice yet | None released | Priority High. Fix prepared, not released: 22.04 jammy 5.15.0-203.213, 24.04 noble 6.8.0-149.149, 26.04 resolute 7.0.0-43.43, 26.10 7.3.0-10.10. The aws, azure, gcp, oracle and gke kernel flavors are also pending on jammy and noble. 20.04, 18.04 and 16.04 are "needed" (affected, no fix yet). 14.04 is not affected. No Livepatch fix is listed |
-| Red Hat | Affected, no fix | None | RHEL 8 and 9 (kernel and kernel-rt), RHEL 10 (kernel) and OpenShift 4 (RHCOS 8 and 9) are affected, with no fix or RHSA yet. RHEL 6 and 7 are not affected (vulnerable code not present). Red Hat states that no mitigation meets its criteria. Bugzilla 2553390 is NEW, and no kpatch exists |
-| AlmaLinux, Rocky Linux | No advisory yet | None | AlmaLinux 8, 9 and 10 and Rocky Linux 8, 9 and 10 follow RHEL |
-| Oracle Linux | UEK fixed on 16 October 2026 (Important) | ELSA-2026-500397 (UEK R6 5.4.17-2136.360.3.1, OL7 and OL8), ELSA-2026-500398 (UEK R7 5.15.0-325.221.6.4, OL8 and OL9), ELSA-2026-500399 (UEK R8 6.12.0-207.111.5.4, OL9 and OL10) | Ksplice updates for UEK R6, R7 and R8 on 19 October 2026. The Red Hat compatible kernel (RHCK) is pending |
-| SUSE | Fixed for several products (important) | kernel-default at least 6.12.0-160000.40.1 for SLE 16.0 and SLE Micro 6.2; 6.4.0-150600.23.143.1 for SLES 15 SP6 LTSS; 5.14.21-150500.55.195.1 for SLES 15 SP5 LTSS and Micro 5.5; 5.14.21-150400.24.246.1 for SLES 15 SP4 LTSS and Micro 5.3 and 5.4 | SLES 15 SP7 is in progress. Affected: SLE Micro 6.0 and 6.1, SLES 12 SP5 LTSS, SLES 15 SP1 to SP3 LTSS. SLE 11 SP4 is not affected. No live patch is listed. The advisories SUSE-SU-2026:24386-1 and SUSE-SU-2026:24422-1 are dated 24 October 2026, and SUSE's CVE page lists them on 29 October 2026 |
-| Amazon Linux | AL2023 kernel6.12 and kernel6.18 fixed (Important, CVSS 8.1) | kernel6.12 6.12.113-138.209.amzn2023 (ALAS2023-2026-3335, 29 October 2026), kernel6.18 6.18.56-125.164.amzn2023 (ALAS2023-2026-3251, 24 October 2026) | The AL2023 package named "kernel" (6.1) is pending. On AL2 the core kernel and the 5.4, 5.10 and 5.15 extras are pending, and AL2 is marked end of support. No live patch for this CVE |
+| Debian | Fixed for bookworm, trixie, forky and sid (unchanged since 30 October) | bookworm `linux` 6.1.190-1 (DLA-4841-1, 17 October 2026), bookworm `linux-6.12` 6.12.113-1~deb12u1 (DLA-4850-1, 22 October 2026), trixie 6.12.113-1 (DSA-6568-1, 16 October 2026), forky 7.2.12-1, sid 7.2.13-1 | bullseye is fixed only through Freexian ELTS: 5.10.272-1 (ELA-1846-1) and `linux-6.1` 6.1.190-1~deb11u1 (ELA-1850-1). stretch and buster are end of life. Freexian's tracker also lists its `linux-6.1` package as fixed for them, which wasn't checked further. Debian has set no urgency |
+| Ubuntu | Pending: fixes in testing (the -proposed pocket), no Ubuntu Security Notice | None released | Priority critical since 3 November. Canonical said on 2 November that fixes are in -proposed for testing and that updates are "the only appropriate mitigation". Prepared versions: 22.04 jammy 5.15.0-203.213, 24.04 noble 6.8.0-149.149, 26.04 resolute 7.0.0-43.43, 26.10 7.3.0-10.10. The aws, azure, gcp, gke and oracle kernel flavours on jammy and noble are still pending. 20.04, 18.04 and 16.04 are "needed" (affected, no fix yet). 14.04 is not affected. No Livepatch fix is listed |
+| Red Hat | Fixed on 1 November (Critical, 9.8) | RHEL 8.10 kernel 4.18.0-553.182.1.el8_10 (RHSA-2026:93414), RHEL 9 5.14.0-687.64.1.el9_8 (RHSA-2026:93412), RHEL 10 6.12.0-211.72.1.el10_2 (RHSA-2026:93413) | Errata for the EUS, E4S, AUS, TUS and SAP streams followed through 4 November. OpenShift 4 (RHCOS 8 and 9) is still listed as affected. RHEL 6 and 7 are not affected (vulnerable code not present). Bulletin RHSB-2026-016 gives an nftables mitigation. Bugzilla 2553390 is still NEW, and no kpatch exists |
+| AlmaLinux, Rocky Linux | Fixed | Rocky Linux 8, 9 and 10: RLSA-2026:93414, 93412 and 93413 (3 November). AlmaLinux 8: ALSA-2026:93414 and 93415. AlmaLinux 9 and 10: fixed kernels in the repositories since 2 November, with the CVE in the changelog | No AlmaLinux advisory ID was found for 9 and 10. AlmaLinux's blog post of 30 October (updated 2 November) also gives interim mitigations |
+| Oracle Linux | UEK and the Red Hat compatible kernel fixed (Important) | UEK: ELSA-2026-500397, -500398 and -500399 (16 October), then ELSA-2026-500573 (R6 5.4.17-2136.361.4), -500574 (R7 5.15.0-326.222.4) and -500572 (R8 6.12.0-208.112.5) on 2 November. RHCK: ELSA-2026-93414 (OL8), -93412 (OL9) and -93413 (OL10), 2 November | Ksplice updates for UEK R6, R7 and R8 on 19 October 2026 |
+| SUSE | Fixed for most products (important) | kernel-default at least 6.12.0-160000.40.1 for SLE 16.0 and SLE Micro 6.2; 6.4.0-150700.53.90.1 for SLES 15 SP7; 6.4.0-150600.23.143.1 for SLES 15 SP6 LTSS; 5.14.21-150500.55.195.1 for SLES 15 SP5 LTSS and Micro 5.5; 5.14.21-150400.24.246.1 for SLES 15 SP4 LTSS and Micro 5.3 and 5.4 | SLE Micro 6.0 and 6.1 are released too, and SLES 12 SP5 is in progress. Live patches are listed for SLE 12 SP5 and 15 SP4 to SP7 (for example SUSE-SU-2026:5059-1, 3 November). SLES 15 SP1 to SP3 LTSS are still affected. SLE 11 SP4 is not affected |
+| Amazon Linux | Fixed for AL2023 and AL2 (Important, CVSS 8.1) | AL2023: kernel6.12 6.12.113-138.209.amzn2023 (ALAS2023-2026-3335), kernel6.18 6.18.56-125.164.amzn2023 (ALAS2023-2026-3251) and the package named "kernel" 6.1.189-236.400 (ALAS2023-2026-3365). AL2: kernel 4.14.355-287.758 (ALAS2-2026-4065) and the 5.4, 5.10 and 5.15 extras (ALAS2KERNEL-5.4-2026-135, ALAS2KERNEL-5.10-2026-137, ALAS2KERNEL-5.15-2026-120) | The newer advisories are dated 30 October. AWS bulletin 2026-160-AWS (31 October) says to update and reboot. No live patch for this CVE |
 | Azure Linux 3.0 | Fixed | kernel 6.6.159.1-1.azl3 (Microsoft vendor fix, production repository since 20 October 2026) | Azure Linux 4.0 is under investigation. Microsoft's update guide lists the CVE for Azure Linux with customer action required |
-| Alpine | At or above the fix (inferred) | linux-lts 6.12.114 (3.21 and 3.22), 6.18.59 (3.23, 3.24 and edge) | The Alpine tracker has no package data yet |
-| Fedora and Arch | Fixed (inferred) | Fedora 43 and 44 kernel 7.2.13, Arch linux 7.2.11 and linux-lts 6.18.59 | Inferred from the kernel version, as defined above |
-| GKE Container-Optimized OS | Mixed (inferred) | At the fix (inferred): m121 (6.6.159), m125 and m129 (6.12.113). Below the fix (inferred): m113 (6.1.161), m117 (6.6.157), m133 (6.18.55) | No GKE bulletin names the CVE |
-| EKS | Fixed in the newest AL2023 AMI for two kernels | AL2023 AMI v20261026 (27 October 2026) ships 6.18.56-125.164 and 6.12.113-138.209 | Its 6.1.189 variant is not fixed |
-| Bottlerocket | Pending | kernel-kit 9.6.1 has the fixed builds | The latest OS release, v1.68.0 (27 October 2026), still uses kernel-kit 9.6.0, which is before the fix |
-| AKS | Pending | None | Node image 202610.16.1 (27 October 2026) runs kernels below the fix for both Azure Linux and Ubuntu |
-| Flatcar | Fixed (inferred) | Stable 4757.2.2 and later, LTS 4081.3.11 and later | Inferred from the kernel version |
-| Talos | Fixed (inferred) | v1.14.3 and later | Inferred from the kernel version |
-| Live patching | Only Oracle Ksplice is confirmed | Ksplice for UEK R6, R7 and R8 | None found from Ubuntu Livepatch, RHEL kpatch, SUSE live patching or Amazon Linux |
+| Alpine | At or above the fix (inferred) | linux-lts 6.12.114 (3.21 and 3.22), 6.18.59 (3.23, 3.24 and edge) | The Alpine tracker still has no package data |
+| Fedora and Arch | Fixed (inferred) | Fedora 44 kernel 7.2.15, Arch linux 7.2.14 and linux-lts 6.18.60 | Inferred from the kernel version, as defined above |
+| GKE Container-Optimized OS | Mixed | The release notes for m121, m125, m129 and m133 name the fix (m133 in cos-133-19999-44-174, 30 October). Below the fix (inferred) on 30 October: m113 (6.1.161), m117 (6.6.157) | GKE's release notes still listed 44-159 for 1.37 on 4 November. No GKE bulletin names the CVE |
+| EKS | Fixed in the AL2023 AMIs | AL2023 AMI v20261031, named in AWS bulletin 2026-160-AWS, after v20261026 (27 October) had fixed the 6.12 and 6.18 kernels. The ECS-optimized AMI 20261031 is fixed too | The 6.1 variant was not fixed in v20261026 |
+| Bottlerocket | Fixed | v1.68.1 (2 November 2026), with kernel-kit 9.6.2 | AWS's bulletin of 31 October expected fixed Bottlerocket AMIs from 2 November, and v1.68.1 shipped that day. v1.68.0 (27 October) didn't have the fix |
+| AKS | Unclear | AKS's release tracker shows node image 202610.23.0 as current | Its kernel versions weren't confirmed. Node image 202610.16.1 (27 October) ran kernels below the fix for both Azure Linux and Ubuntu |
+| Flatcar | Fixed (inferred) | Stable 4757.2.2 and later (4757.2.3 is current), LTS 4081.3.11 and later (4081.3.12) | Inferred from the kernel version |
+| Talos | Fixed (inferred) | v1.14.3 and later (v1.14.5 is current) | Inferred from the kernel version |
+| CentOS Stream | Pending | None | The newest Stream 9 and 10 kernels (28 October) don't name the CVE |
+| Live patching | Oracle Ksplice, SUSE live patching and TuxCare KernelCare | Ksplice for UEK R6, R7 and R8. SUSE live patches for SLE 12 SP5 and 15 SP4 to SP7. KernelCare for Debian 13 at least | None found from Ubuntu Livepatch, RHEL kpatch or Amazon Linux |
 
-Ubuntu and Red Hat had released no fix at cut-off, and AlmaLinux and Rocky Linux follow Red Hat. Hosts on those platforms rely on the interim mitigations until a kernel arrives.
+Ubuntu is now the big gap. Its fixes were still in testing on 4 November, so Ubuntu hosts rely on the interim mitigations until the update is released. Red Hat and its rebuilds shipped between 1 and 3 November.
 
-*Sources: vendor and distro pages and trackers as of the 30 October 2026, 06:30 UTC cut-off (Debian security tracker and Freexian ELTS tracker, Ubuntu CVE tracker, Red Hat CVE page and Bugzilla, SUSE CVE page, Amazon Linux Security Center, Oracle Linux CVE page, Microsoft update guide, Alpine security tracker), Container-Optimized OS release notes, EKS AMI, Bottlerocket and AKS release notes, Flatcar and Talos release notes*
+*Sources: vendor and distro pages and trackers checked on 30 October and again on 4 November 2026 (Debian security tracker and Freexian ELTS tracker, Ubuntu CVE tracker and Canonical blog, Red Hat CVE page, CSAF list, Bugzilla and bulletin RHSB-2026-016, Rocky Linux and AlmaLinux errata, SUSE CVE page and live patch advisories, Amazon Linux Security Center and AWS bulletin 2026-160-AWS, Oracle Linux CVE page, Microsoft update guide, Alpine security tracker, Fedora and Arch package indexes, TuxCare blog), Container-Optimized OS and GKE release notes, EKS AMI, Bottlerocket and AKS release notes and the AKS release tracker, Flatcar and Talos release notes, CentOS Stream package mirrors*
 
 ### Software that opens MPTCP listeners
 
@@ -215,7 +226,7 @@ The reporters demonstrated their exploit against an MPTCP listener, so what open
 
 Upstream kernels default `net.mptcp.enabled` to 1. The setting is per network namespace, and every new namespace starts at 1. MPTCP is built in (`CONFIG_MPTCP=y`) on Ubuntu 22.04, 24.04 and 26.04, Debian bookworm and trixie, SLE 15 SP7 and 16.0, Azure Linux 3.0, Alpine linux-lts, Talos, and the Fedora and CentOS Stream common configs.
 
-RHEL differs. Red Hat's RHEL 8 and 9 documentation says: "By default the MPTCP support is disabled in RHEL." The RHEL 10 guide also tells you to enable it, with no explicit default sentence. Red Hat still lists RHEL 8, 9 and 10 as affected.
+RHEL differs. Red Hat's RHEL 8 and 9 documentation says: "By default the MPTCP support is disabled in RHEL." The RHEL 10 guide also tells you to enable it, with no explicit default sentence. Red Hat's bulletin RHSB-2026-016 now says plainly that RHEL disables MPTCP in its default configuration, and that RHEL is affected anyway because MPTCP isn't a precondition. RHEL 8, 9 and 10 have had fixed kernels since 1 November.
 
 Go matters most, because of one default. The Go 1.24 release notes say `ListenConfig` now uses MPTCP by default where supported (currently Linux only). The Go `godebug` documentation says that for Go 1.24 `multipathtcp` defaults to 2, listeners only, and that `multipathtcp=0` reverts to the old behavior. The values are 0 off, 1 listeners and dialers, 2 listeners only and 3 dialers only. Three rules decide what a given binary does:
 
@@ -252,8 +263,10 @@ We read the go.mod of each project's latest release on 30 October 2026. All 18 d
 - mptcp.dev (secondary) also lists Caddy since v2.10.0, and Traefik since v2.11.26 and v3.4.2, as MPTCP by default on the server side.
 - Opt-in only: systemd sockets (`SocketProtocol=mptcp`), mptcpize and lighttpd (`server.network-mptcp` defaults to "disable") open MPTCP listeners only when someone configures them. Per mptcp.dev (secondary), HAProxy 3.1, NGINX 1.29.7, Apache, Envoy and Valkey 9 also need explicit configuration.
 - Kubernetes and containers: kube-proxy and similar layer 4 forwarding pass packets, IP options included, to pods. Every pod network namespace starts with `net.mptcp.enabled=1` on upstream kernels, and a host sysctl doesn't change that. An ingress controller that terminates TCP shields the pods behind it, but it is itself exposed. Traefik, for example, is a Go program from the table.
+- Go hasn't changed its default. Go issue 82717 was still undecided on 4 November. Ian Lance Taylor sees no reason to drop the MPTCP default over a security issue, and an MPTCP developer in the thread calls real-world success "very unlikely". The newest Go releases (go1.27.3 and go1.26.10, 20 October) keep `multipathtcp` as it was.
+- Some projects are turning MPTCP off themselves. CoreDNS merged an MPTCP-off build default, not yet released on 4 November. Grafana Loki merged one and reverted it on 4 November. Pull requests for Caddy, Prometheus and NATS were closed unmerged, and the ones for etcd, Vault and Istio were still open.
 
-*Sources: Go 1.24 release notes, Go godebug documentation, go.mod files of each project's latest release (read on 30 October 2026), mptcp.dev application list (secondary), Red Hat MPTCP documentation for RHEL 8, 9 and 10, kernel MPTCP sysctl documentation, distribution kernel configurations*
+*Sources: Go 1.24 release notes, Go godebug documentation, go.mod files of each project's latest release (read on 30 October 2026), mptcp.dev application list (secondary), Red Hat MPTCP documentation for RHEL 8, 9 and 10 and bulletin RHSB-2026-016, kernel MPTCP sysctl documentation, distribution kernel configurations, Go issue 82717 and the Go download index, and a GitHub search of the projects' pull requests (4 November 2026)*
 
 ---
 
@@ -293,41 +306,55 @@ We read the go.mod of each project's latest release on 30 October 2026. All 18 d
 | 29 to 30 October 2026 | Eleven GitHub repositories named after the CVE appear. None is verified |
 | 30 October 2026, 00:21 | The Go announcement is forwarded to oss-security |
 | 30 October 2026, 02:08 | CISA's ADP container adds the oss-security link to the CVE record |
-| 30 October 2026, 06:30 | Data cut-off for this analysis |
+| 30 October 2026, 06:30 | Data cut-off for version 1.0 of this analysis |
+| 30 October 2026 | Amazon Linux fixes its AL2023 6.1 kernel (ALAS2023-2026-3365) and its AL2 kernels (ALAS2-2026-4065 and the 5.4, 5.10 and 5.15 extras). Linux 7.3.1, 6.18.60, 6.12.115, 6.6.161, 6.1.191, 5.15.224 and 5.10.273 are released. Container-Optimized OS names the fix in cos-133-19999-44-174. CERTs in the Netherlands (NCSC-2026-0461), Canada (AV26-1108) and France (CERTFR-2026-AVI-1432) issue advisories. AlmaLinux posts interim mitigations. Red Hat publishes bulletin RHSB-2026-016 (16:03), and The Hacker News dates its nftables rule for IPv4 TCP packets with IP options to the same day. BleepingComputer reports "no confirmed reports" of exploitation |
+| 30 October 2026, 09:05 | An oss-security post points out that `net.mptcp.enabled=0` turns MPTCP off system-wide |
+| 30 to 31 October 2026 | On Go issue 82717, Ian Lance Taylor argues against dropping the MPTCP default |
+| 31 October 2026, 05:15 | AWS bulletin 2026-160-AWS: Amazon Linux kernels available, EKS and ECS AMIs fixed, Global Accelerator drops packets with IP options, and "no evidence" the bug has been used |
+| 31 October 2026, 16:01 | An oss-security post suggests `init_on_free=1` as an extra stopgap |
+| 1 November 2026 | Red Hat ships RHSA-2026:93414, 93412 and 93413 for RHEL 8, 9 and 10. Linux 7.2.15 ends the 7.2 line, and 7.4-rc1 is released |
+| 2 November 2026 | Oracle ships Red Hat compatible kernel errata (ELSA-2026-93414, -93412 and -93413) and new UEK errata. AlmaLinux's fixed kernels reach its repositories. Fortinet publishes PSIRT FG-IR-26-188. Bottlerocket v1.68.1 ships the fix (17:44). Canonical says Ubuntu's fixes are in -proposed for testing (21:00) |
+| 3 November 2026 | A CIQ kernel engineer replies on oss-security that `init_on_free=1` doesn't help (04:46). SUSE publishes live patch advisories for SLE 15 SP7 (SUSE-SU-2026:5058-1 and 5059-1). FortiGuard lists an IPS signature for the CVE. Eric Dumazet posts the IPv6 sibling fix to netdev (09:00). Rocky Linux ships RLSA-2026:93414, 93412 and 93413 (12:01 to 12:10). Ubuntu raises its priority to critical (12:24). HKCERT issues bulletins, and The Hacker News reports Red Hat's fixes and its move to 9.8 |
+| 4 November 2026 | Red Hat updates bulletin RHSB-2026-016. A GitHub search finds 71 repositories that mention the CVE. Previdian still says "No Exploitation Yet" |
+| 4 November 2026, 14:00 | Data cut-off for version 1.1 |
 
-Critical insight: the fix and its technical explanation sat in public on netdev from 29 September 2026. That is 16 days before the CVE was published and 28 days before the reporters' write-up. The commit message of the first version explains the use-after-free, so the bug was readable on the list four weeks before the exploit story broke. The first fixed releases came on 11 October 2026. For an internet-facing server with an MPTCP listener, "we'll patch it next window" isn't a plan.
+Critical insight: the fix and its technical explanation sat in public on netdev from 29 September 2026. That is 16 days before the CVE was published and 28 days before the reporters' write-up. The commit message of the first version explains the use-after-free, so the bug was readable on the list four weeks before the exploit story broke. The first fixed releases came on 11 October 2026. Red Hat shipped 17 days after the CVE was published, and Ubuntu was still testing on day 20. For an internet-facing server with an MPTCP listener, "we'll patch it next window" isn't a plan.
 
-*Sources: kernel.org ChangeLog files and CVE record, the netdev mailing list, kernel commit history, NVD, GitHub advisory database, Debian, Oracle Linux, Amazon Linux, SUSE, Microsoft, Flatcar and EKS release notes, the reporters' write-up, Go security team announcement, Go issue 82717, The Hacker News (29 October 2026), Ubuntu CVE tracker, oss-security, CISA ADP container, GitHub repository search*
+*Sources: kernel.org ChangeLog files, releases page and CVE record, the netdev mailing list and its marc.info archive, kernel commit history, NVD, GitHub advisory database, Debian, Oracle Linux, Amazon Linux, SUSE, Red Hat, Rocky Linux, AlmaLinux, Microsoft, Flatcar, EKS and Bottlerocket release notes and advisories, Container-Optimized OS release notes, AWS bulletin 2026-160-AWS, Fortinet PSIRT, the reporters' write-up, Go security team announcement, Go issue 82717, The Hacker News (29 October and 3 November 2026), BleepingComputer (30 October 2026), Ubuntu CVE tracker and Canonical blog, oss-security, CISA ADP container, NCSC-NL, CCCS, CERT-FR and HKCERT advisories, Previdian, GitHub repository search*
 
 ### Who's attacking
 
-No exploitation in the wild has been reported, so there is nobody to attribute. No threat actor is known to be using the bug. Here is what each source said by the cut-off:
+No exploitation in the wild has been reported, so there is nobody to attribute. No threat actor is known to be using the bug. Here is what each source said by 4 November:
 
 | Source | What they said or showed | Confidence |
 | --- | --- | --- |
-| The reporters' write-up (27 October 2026, updated 28 October 2026) | Describes an exploit that lets a remote attacker with no credentials and no user interaction run arbitrary commands as root on Linux servers with an MPTCP listener. Stage 1 defeats kernel address randomization (KASLR) remotely by leaking a kernel pointer through the over-read in the SYN-ACK. Stage 2 ends with an attacker-chosen shell command running as root. A lost race only fails the handshake, so an attacker can retry indefinitely. The proof of concept took 48 minutes to leak a kernel pointer and another 5 minutes to reach command execution. It says the bug is patched upstream and backported to all maintained stable branches. It names no tested kernel versions or distributions and doesn't explain why MPTCP is needed. No exploit code was published and no release was announced | The reporters' own account. No code and no tested versions shown |
+| The reporters' write-up (27 October 2026, updated 28 October 2026) | Describes an exploit that lets a remote attacker with no credentials and no user interaction run arbitrary commands as root on Linux servers with an MPTCP listener. Stage 1 defeats kernel address randomization (KASLR) remotely by leaking a kernel pointer through the over-read in the SYN-ACK. Stage 2 ends with an attacker-chosen shell command running as root. A lost race only fails the handshake, so an attacker can retry indefinitely. The proof of concept took 48 minutes to leak a kernel pointer and another 5 minutes to reach command execution. It says the bug is patched upstream and backported to all maintained stable branches. It names no tested kernel versions or distributions and doesn't explain why MPTCP is needed. No exploit code was published and no release was announced. On 3 November The Hacker News said the code was still unpublished | The reporters' own account. No code and no tested versions shown |
 | Go security team (golang-announce, 29 October 2026, 23:34 UTC, forwarded to oss-security on 30 October 2026) | The demonstrated exploit requires an MPTCP listener. The underlying bug is not specific to MPTCP, and systems with no MPTCP listener may be vulnerable to similar attacks. Go 1.24 and later enable MPTCP by default for listen sockets on Linux. Disabling MPTCP program by program is "a fragile mitigation", and the best fix is a patched kernel. It is premature to change Go's defaults, and discussion continues in Go issue 82717 | Statement from the Go security team. No test results shown |
-| Go issue 82717 ("proposal: net: Disable MPTCP by default") | Opened 29 October 2026 by a community member and still open on 30 October 2026. A Go team member says they are actively looking at it, and that nobody knows whether remote code execution is possible without an MPTCP listener. The same member says dropping IPv4 TCP packets that carry IP options "may suffice", which is unconfirmed | Public discussion, nothing verified |
-| Exploitation reports | None reported. Rapid7 lists `exploited_in_wild` as false. Wiz and Feedly show no evidence | Negative, and weak evidence |
-| CISA | Not in KEV (catalog 2026.10.29). CISA's ADP container added the Go announcement link to the CVE record on 30 October 2026 (02:08 UTC) | Negative |
-| GitHub | Eleven repositories named after the CVE were created on 29 and 30 October 2026. Most describe themselves as checkers, mitigations, audits or a livepatch, and one claims a race trigger | Contents not verified. Treat as untrusted |
-| National CERTs | No advisory naming the CVE was found on 30 October 2026. Checked: CERT-Bund WID feed, CERT-FR, NCSC UK, NCSC NL, CCCS, JPCERT and CERT-In lists. Some feeds covered only the last few days | Weak evidence |
-| Cloud providers | No AWS, Google Cloud or Azure security bulletin named the CVE on 29 or 30 October 2026. Microsoft's update guide lists it for Azure Linux with customer action required | Advisories only, no attack data |
-| Press | The Hacker News (29 October 2026): "Linux Kernel TCP Flaw With 9.8 CVSS Score Affects Ubuntu, Red Hat and Other Distributions". Security press picked up the reporters' write-up on 28 October 2026 | Secondary source |
+| Go issue 82717 ("proposal: net: Disable MPTCP by default") | Opened 29 October 2026 by a community member and still undecided on 4 November. A Go team member said early on that nobody knows whether remote code execution is possible without an MPTCP listener, and that dropping IPv4 TCP packets that carry IP options "may suffice", which is unconfirmed. Ian Lance Taylor later argued against dropping the default, and an MPTCP developer called real-world success "very unlikely" | Public discussion, nothing verified |
+| Red Hat (bulletin RHSB-2026-016, last updated 4 November) | Having MPTCP enabled is not a precondition, and disabling it is "not a complete mitigation". Recommends an nftables filter for IPv4 TCP packets with IP options, which reduces exposure but "cannot fully prevent" exploitation and doesn't cover pod-to-pod traffic in OpenShift | Vendor statement. No test results shown |
+| A CIQ kernel engineer (oss-security, 3 November) | `init_on_free=1` does nothing meaningful against this CVE, because the remote KASLR defeat leaks pointers from live slab objects. The IP-options filter misses traffic between containers on the same host | Code analysis, no reproduction |
+| Exploitation reports | None reported. Rapid7 lists `exploited_in_wild` as false, Wiz and Feedly show no evidence, Previdian says "No Exploitation Yet" (4 November), AWS has "no evidence" (31 October), Fortinet's PSIRT lists it as not known exploited (2 November), and BleepingComputer found "no confirmed reports" (30 October) | Negative, and weak evidence |
+| CISA | Not in KEV (catalog 2026.11.03). No alert. CISA's ADP container added the Go announcement link to the CVE record on 30 October 2026 (02:08 UTC) | Negative |
+| GitHub | 71 repositories mention the CVE on 4 November, up from 11 on 30 October. Descriptions include checkers, mitigations, a trigger that says it does no code execution, and a "lab root-shell kit" that says it is not a stock remote exploit. The Hacker News (3 November) says the proof-only code it saw does not implement code execution | Not verified. Treat as untrusted |
+| National CERTs | NCSC-NL (NCSC-2026-0461), the Canadian Centre for Cyber Security (AV26-1108, no exploitation claim) and CERT-FR (CERTFR-2026-AVI-1432) issued advisories on 30 October, and HKCERT bulletins followed on 3 November. CISA and NCSC UK had nothing in their feeds up to 3 November. BSI, ACSC, CERT-In, JPCERT/CC and CERT-EU couldn't be checked properly | Advisories only, no attack data |
+| Cloud providers | AWS bulletin 2026-160-AWS (31 October): no evidence of use, Amazon Linux kernels and the EKS and ECS images fixed, Bottlerocket images expected from 2 November, and Global Accelerator drops packets with IP options. No Google Cloud or GKE bulletin names the CVE. Microsoft's update guide lists it for Azure Linux with customer action required | Advisories only, no attack data |
+| Security vendors | Fortinet published PSIRT FG-IR-26-188 on 2 November, and FortiGuard lists an IPS signature, Linux.Kernel.tcp_v4_syn_recv_sock.Use.After.Free, from 3 November. Tenable lists 73 plugins, and Rapid7 and Snyk have entries. There is no Emerging Threats Open or Snort community rule and no nuclei template | Detection content, no attack data |
+| Press | The Hacker News (29 October and 3 November), BleepingComputer, CSO Online and heise (30 October). Nothing in The Register or LWN | Secondary sources |
 
-Absence of reports is weak evidence, and some of the feeds above covered only the last few days, so "no exploitation" only means what the readable sources say. There is no IP list to give you. The only published attack pattern is the reporters' own: many handshakes from one source over tens of minutes, with Record Route or Timestamp options and retransmitted SYNs. Skip the 11 repositories too: nobody has verified them, and running unknown proof-of-concept code is a common way to get compromised. To find out whether you're exposed, use the checks in AM I AFFECTED? SELF-ASSESSMENT.
+Absence of reports is weak evidence, and some of the feeds above couldn't be read in full, so "no exploitation" only means what the readable sources say. There is no IP list to give you. The only published attack pattern is the reporters' own: many handshakes from one source over tens of minutes, with Record Route or Timestamp options and retransmitted SYNs. Skip the repositories too: nobody has verified them, and running unknown proof-of-concept code is a common way to get compromised. To find out whether you're exposed, use the checks in AM I AFFECTED? SELF-ASSESSMENT.
 
-*Sources: the reporters' write-up, Go security team announcement (golang-announce and oss-security), Go issue 82717, Rapid7, Wiz, Feedly, CISA KEV feed and ADP container, GitHub repository search, CERT-Bund, CERT-FR, NCSC UK, NCSC NL, CCCS, JPCERT and CERT-In lists, Microsoft update guide, The Hacker News (29 October 2026)*
+*Sources: the reporters' write-up, Go security team announcement (golang-announce and oss-security), Go issue 82717, Red Hat bulletin RHSB-2026-016, oss-security (3 November 2026), Rapid7, Wiz, Feedly, Previdian, AWS bulletin 2026-160-AWS, Fortinet PSIRT, Tenable, Snyk, nuclei-templates, Emerging Threats Open and Snort community rules, CISA KEV feed, alerts and ADP container, GitHub repository search, NCSC-NL, CCCS, CERT-FR, HKCERT and NCSC UK, Microsoft update guide, Google Cloud and GKE bulletins, The Hacker News (29 October and 3 November 2026), BleepingComputer (30 October 2026)*
 
 ### Global impact statistics
 
 - **No count exists** of exposed internet-facing Linux hosts, of hosts with MPTCP listeners or of unpatched installs. No public exposure counts exist, and this analysis gives none. A count of kernel versions couldn't size the exposure anyway, because it depends on which listeners a host runs and whether IP options reach them.
-- **0.00388** is the EPSS score (32.8th percentile) on 29 October 2026. It is a score for the chance of exploitation, not a count of exposed hosts.
-- **Not listed** in CISA KEV (catalog 2026.10.29), and no source checked reports exploitation in the wild.
-- **11** GitHub repositories named after the CVE appeared on 29 and 30 October 2026. A proxy for attention, not exposure. None is verified.
+- **0.0076** is the EPSS score (55.3rd percentile) on 3 November 2026, up from 0.00388 on 29 October. It is a score for the chance of exploitation, not a count of exposed hosts.
+- **Not listed** in CISA KEV (catalog 2026.11.03), and no source checked reports exploitation in the wild.
+- **71** GitHub repositories mentioned the CVE on 4 November, up from 11 on 30 October. A proxy for attention, not exposure. None is verified.
+- **73** Tenable plugins listed the CVE on 4 November.
 - **18** common Go servers checked all open MPTCP listeners by default wherever the kernel allows it (see Software that opens MPTCP listeners). That sizes the software, not the exposure.
 
-*Sources: FIRST EPSS API, CISA KEV feed, GitHub repository search, go.mod files of each project's latest release, the reporters' write-up, Go security team announcement, The Hacker News (29 October 2026), vendor and distro advisories*
+*Sources: FIRST EPSS API, CISA KEV feed, GitHub repository search, Tenable, go.mod files of each project's latest release, the reporters' write-up, Go security team announcement, The Hacker News (29 October 2026), vendor and distro advisories*
 
 ---
 
@@ -352,11 +379,11 @@ rpm -qa 'kernel*' | sort
 
 The package list shows every installed kernel, old ones included. Only the one that `uname -r` names is running.
 
-Containers share the host kernel and have none of their own, so the kernel that counts is the one on the host or the Kubernetes node. On a managed Kubernetes service, the node image decides it. At cut-off the EKS AL2023 AMI v20261026 (27 October) carried fixed 6.12 and 6.18 kernels, but its 6.1 variant did not. The AKS node image of the same week was below the fix, and the latest Bottlerocket OS release (v1.68.0, 27 October) still used kernel-kit 9.6.0, which is before the fix. Where the fix comes from, in the RISK DASHBOARD, has every node image state we found.
+Containers share the host kernel and have none of their own, so the kernel that counts is the one on the host or the Kubernetes node. On a managed Kubernetes service, the node image decides it. On 4 November the EKS AL2023 AMI v20261031 and Bottlerocket v1.68.1 carried fixed kernels. AKS had rolled out node image 202610.23.0, whose kernel versions we couldn't confirm. Where the fix comes from, in the RISK DASHBOARD, has every node image state we found.
 
 Inventories miss some places, so look there too: cloud images and virtual machines nobody owns any more, test and staging servers that face the internet, build agents, Kubernetes node pools, and products that run Linux inside (ask the vendor). Hosts with no listening TCP port that an untrusted IPv4 network can reach are less exposed, so start with the ones that have one.
 
-*Sources: EKS AMI, AKS and Bottlerocket release notes (checked on 30 October 2026)*
+*Sources: EKS AMI, AKS and Bottlerocket release notes, AWS bulletin 2026-160-AWS, AKS release tracker (checked on 30 October and 4 November 2026)*
 
 ---
 
@@ -367,14 +394,14 @@ Start with the version-number trap, because it fools scanners and people alike. 
 **Interpretation:**
 
 - Upstream point releases (kernels you build, and distros that follow them: Debian, Arch, Fedora and Alpine): the upstream number decides. Debian shows it in the package version, for example 6.1.190-1. Fixed from 7.3 (7.3-rc7 and later), 7.2.10, 6.18.56, 6.12.113, 6.6.159, 6.1.190, 5.15.223 or 5.10.272, each within its own line. Anything older in those lines is vulnerable. For Arch, Fedora and Alpine the status is inferred: we compared their kernel versions with the upstream fixed versions, and no vendor notice names the CVE.
-- The newest releases on 30 October 2026, per kernel.org, are mainline 7.3, stable 7.2.13, and longterm 6.18.59, 6.12.114, 6.6.160, 6.1.190, 5.15.223 and 5.10.272. kernel.org projects end of life for 5.15 and 5.10 in December 2026.
+- The newest releases on 4 November 2026, per kernel.org, are mainline 7.4-rc1, stable 7.3.1, and longterm 6.18.60, 6.12.115, 6.6.161, 6.1.191, 5.15.224 and 5.10.273. The 7.2 line ended with 7.2.15 on 1 November. kernel.org projects end of life for 5.15 and 5.10 in December 2026.
 - No upstream fix exists for 5.4 and older, or for end-of-life lines that aren't longterm (for example 7.1, 7.0 and 6.19). Those kernels are fixed only where a vendor backported the patch.
-- Vendor kernels (Ubuntu, the RHEL family, SUSE, Oracle, Amazon Linux, Azure Linux): the vendor's package version decides. What each platform had published at cut-off is in Where the fix comes from, in the RISK DASHBOARD. Ubuntu, the RHEL family, Amazon Linux 2 and the AL2023 package named `kernel` had no fixed package yet.
+- Vendor kernels (Ubuntu, the RHEL family, SUSE, Oracle, Amazon Linux, Azure Linux): the vendor's package version decides. What each platform has published is in Where the fix comes from, in the RISK DASHBOARD. On 4 November Ubuntu and CentOS Stream had no released fixed package, and OpenShift 4 was still listed as affected.
 - Not affected: kernels older than 4.4, RHEL 6 and 7 (the vulnerable code isn't present), Ubuntu 14.04 and SLE 11 SP4.
 
 Fixed: go to STEP 4: Is the fixed kernel actually running? Vulnerable or unsure: go to STEP 3: How exposed is it?
 
-*Sources: kernel.org ChangeLog files and release list, the CVE record, Debian, Ubuntu, Red Hat, SUSE, Oracle and Amazon Linux security pages, Fedora, Arch and Alpine package versions (checked on 30 October 2026)*
+*Sources: kernel.org ChangeLog files and release list, the CVE record, Debian, Ubuntu, Red Hat, SUSE, Oracle and Amazon Linux security pages, Fedora, Arch and Alpine package versions (checked on 30 October and 4 November 2026)*
 
 ---
 
@@ -391,9 +418,9 @@ ss -tlnp
 
 - A listener on `0.0.0.0` takes IPv4 connections. So does a listener on `[::]` that doesn't set IPV6_V6ONLY (a dual-stack socket): the kernel hands IPv4 packets that arrive there to the IPv4 code. Native IPv6 connections don't take the first path, because the IPv6 code copies the options. Treat a wildcard IPv6 listener as reachable over IPv4 unless you know its program sets IPV6_V6ONLY.
 - A listener on `127.0.0.1` or `::1` can't be reached from outside. A listener on an internal address is exposed to everyone who can reach that network, partners and VPN users included.
-- Security groups and network ACLs can't match IP options, so a port they allow stays reachable with the options intact. No AWS, Google Cloud or Azure documentation says their virtual networks drop or strip IPv4 options. Treat that as unknown.
-- A proxy that terminates TCP (the Cloudflare proxy, AWS ALB, CloudFront, any reverse proxy) keeps the attacker's IP options away from the origin's kernel. That is our reasoning, not a vendor statement, and it holds only while the origin can't be reached directly. Lock the origin firewall to the proxy's IP ranges. The proxy's own kernel is its operator's problem, and a reverse proxy you run yourself is exposed like any other server. Services published only through outbound tunnels (for example Cloudflare Tunnel) have no internet-facing listener.
-- L4 passthrough load balancers (AWS NLB, Google Cloud passthrough network load balancers) forward packets, and no documentation says they strip IP options. Treat services behind them as exposed. The same goes for kube-proxy and similar L4 forwarding, which pass packets on to pods with the IP options included.
+- Security groups and network ACLs can't match IP options, so a port they allow stays reachable with the options intact. AWS says Global Accelerator drops IPv4 packets that carry IP options, but no AWS, Google Cloud or Azure documentation says the same of their virtual networks, and AWS's own interim rules filter at the instance. Treat the network as unknown.
+- A proxy that terminates TCP (the Cloudflare proxy, AWS ALB, CloudFront, any reverse proxy) keeps the attacker's IP options away from the origin's kernel. AWS's bulletin says customers behind ALB, CloudFront, API Gateway and NLB TLS listeners don't receive TCP connections from untrusted sources directly when they follow its best practices. It holds only while the origin can't be reached directly. Lock the origin firewall to the proxy's IP ranges. The proxy's own kernel is its operator's problem, and a reverse proxy you run yourself is exposed like any other server. Services published only through outbound tunnels (for example Cloudflare Tunnel) have no internet-facing listener.
+- L4 passthrough load balancers (AWS NLB with TCP listeners, Google Cloud passthrough network load balancers) forward packets, and no documentation says they strip IP options. Treat services behind them as exposed. The same goes for kube-proxy and similar L4 forwarding, which pass packets on to pods with the IP options included.
 
 Next, the MPTCP and request migration settings:
 
@@ -486,13 +513,13 @@ A kernel update installs the new kernel next to the old one, and the old one kee
 - [ ] The service sits behind an L4 passthrough load balancer, kube-proxy or any other forwarding that passes packets on with their IP options
 - [ ] The origin answers direct connections, so a proxy or CDN in front of it can be skipped
 - [ ] The host is a container host or Kubernetes node whose pods are reachable from untrusted networks (every new network namespace starts with MPTCP enabled on upstream kernels)
-- [ ] The host runs on a platform with no fix yet: Ubuntu, RHEL 8, 9 and 10 and the rebuilds that follow them (AlmaLinux, Rocky), OpenShift 4, Amazon Linux 2, or the AKS node image of 27 October
+- [ ] The host runs on a platform with no released fix yet: Ubuntu, OpenShift 4, CentOS Stream 9 or 10, or an AKS node image whose kernel you can't confirm
 - [ ] The host runs a kernel that will never get an upstream fix and has no vendor backport: 5.4 and older, end-of-life lines such as 7.1, 7.0 and 6.19, Debian stretch and buster
 - [ ] The host holds credentials, signing keys or customer data. A successful attacker runs commands as root
 
 Nothing on the second list is a reason to skip the update. The upstream fix is two one-line changes, and every maintained kernel line has it.
 
-*Sources: kernel.org fix commit and ChangeLog files, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux, Oracle and Microsoft security pages (checked on 30 October 2026)*
+*Sources: kernel.org fix commit and ChangeLog files, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux, Oracle and Microsoft security pages (checked on 30 October and 4 November 2026)*
 
 ---
 
@@ -503,16 +530,16 @@ Nothing on the second list is a reason to skip the update. The upstream fix is t
 - [ ] Container hosts and Kubernetes nodes were restarted or replaced with a fixed node image (a rebuilt container image doesn't count)
 - [ ] Your managed platform has confirmed in writing which kernel your nodes or instances run, and a node reports the version you expect
 - [ ] No listening TCP port on any host is reachable from an untrusted IPv4 network, and you checked dual-stack listeners, test servers and container hosts before saying so
-- [ ] Your services reach the internet only through a proxy that terminates TCP or an outbound tunnel, and the origin firewall allows only the proxy's IP ranges (our reasoning, not a vendor statement)
+- [ ] Your services reach the internet only through a proxy that terminates TCP or an outbound tunnel, and the origin firewall allows only the proxy's IP ranges (AWS says customers behind its TCP-terminating services don't receive untrusted TCP connections directly)
 - [ ] The only Linux you run is RHEL 6 or 7, or kernels older than 4.4 (not affected)
 
-IPv6-only services (IPv6-only sockets, or dual-stack sockets that receive no IPv4) are less exposed to the first path, but that is not the same as safe. The CVE text says tcp_v6_reqsk_destructor() has the same migration issue with ipv6_opt, which only CALIPSO sets, and that a separate patch will fix it. As of 30 October 2026 there is no maintainer patch and no CVE for it. A third party proposed a fix on the netdev list on 19 October 2026 (secondary).
+IPv6-only services (IPv6-only sockets, or dual-stack sockets that receive no IPv4) are less exposed to the first path, but that is not the same as safe. The CVE text says tcp_v6_reqsk_destructor() has the same migration issue with ipv6_opt, which only CALIPSO sets, and that a separate patch will fix it. A maintainer posted that patch on 3 November, and it was still under review on 4 November, with no CVE.
 
-**IMPORTANT:** Closing the MPTCP path, filtering IP options and changing Go settings do not fix the bug. Only a patched kernel does, and only after the host restarts into it. Turning MPTCP off closes the demonstrated path only: plain TCP stays exposed. Dropping TCP packets that carry IP options may suffice, but that is unconfirmed.
+**IMPORTANT:** Closing the MPTCP path, filtering IP options and changing Go settings do not fix the bug. Only a patched kernel does, and only after the host restarts into it. Turning MPTCP off closes the demonstrated path only: plain TCP stays exposed. Red Hat says dropping TCP packets that carry IP options reduces exposure but cannot fully prevent exploitation.
 
-A clean scanner report proves little yet. At cut-off NVD showed the record as Received with no score of its own, Debian had assigned no urgency, the GitHub advisory was unreviewed and the Alpine tracker had no package data. Ubuntu, Red Hat and Amazon Linux 2 had no fixed kernel for a scanner to match. A scanner that goes by the upstream number can also misjudge a vendor kernel that carries a backport. Check the running kernel with the commands above.
+A clean scanner report still proves little. NVD still shows the record as Received with no score of its own, Debian has assigned no urgency, the GitHub advisory is unreviewed and the Alpine tracker has no package data. Ubuntu has no released kernel for a scanner to match. A scanner that goes by the upstream number can also misjudge a vendor kernel that carries a backport. Check the running kernel with the commands above.
 
-*Sources: kernel.org ChangeLog files and the CVE record, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux, Oracle and Microsoft security pages, NVD, GitHub Advisory Database, Alpine security tracker, Linux kernel and Go security team documents (checked on 30 October 2026)*
+*Sources: kernel.org ChangeLog files and the CVE record, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux, Oracle and Microsoft security pages, Red Hat bulletin RHSB-2026-016, NVD, GitHub Advisory Database, Alpine security tracker, the netdev list, Linux kernel and Go security team documents (checked on 30 October and 4 November 2026)*
 
 ---
 
@@ -528,7 +555,7 @@ A clean scanner report proves little yet. At cut-off NVD showed the record as Re
 - [ ] Ask: "Which of our Linux servers accept connections straight from the internet? Websites, APIs, mail, remote access, container and Kubernetes hosts?"
 - [ ] Get the kernel version of each one, and ask for the version that is running, not the one that is installed (IT runs the Quick 3-minute assessment). A patched kernel does nothing until the server restarts
 - [ ] Ask every provider that runs Linux for you, in writing, which kernel your workloads use and whether it has the fix
-- [ ] Flag any internet-facing server on a platform with no fix yet (Ubuntu, the Red Hat family, Amazon Linux 2) or on an end-of-life system
+- [ ] Flag any internet-facing server on a platform with no released fix yet (Ubuntu above all) or on an end-of-life system
 - [ ] Approve emergency maintenance, including restarts during business hours and taking a service offline if it comes to that
 - [ ] Tell legal, compliance and your cyber insurer that you're responding
 
@@ -536,7 +563,7 @@ A clean scanner report proves little yet. At cut-off NVD showed the record as Re
 
 - Everything on a fixed kernel and restarted: document it and move to WEEK 1: Verification and assessment.
 - Internet-facing servers where the vendor has shipped a fix: approve patching and a restart today. Servers that run Go programs or accept MPTCP connections (IT knows which) go first.
-- Servers on a platform with no fix yet (Ubuntu, the Red Hat family, Amazon Linux 2): approve the interim measures in For technical teams, and ask the vendor in writing for a date. One of those measures, dropping network packets that carry IP options, may suffice, but nobody has confirmed it.
+- Servers on a platform with no released fix yet (Ubuntu, OpenShift 4): approve the interim measures in For technical teams, and ask the vendor in writing for a date. Red Hat recommends one of those measures, dropping network packets that carry IP options, but says it can't fully prevent an attack.
 - Servers on end-of-life systems, where no fix is coming: approve a move to a supported system, or take the service off the internet until it's done.
 
 ---
@@ -546,10 +573,10 @@ A clean scanner report proves little yet. At cut-off NVD showed the record as Re
 **Executive decision checklist:**
 
 - [ ] Approve maintenance windows. Every affected server has to restart, and container clusters have to restart or replace their servers in batches, so plan for short interruptions
-- [ ] Decide what to do about servers that can't take a fixed kernel today. That means platforms with no vendor fix yet (Ubuntu, the Red Hat family, Amazon Linux 2) and end-of-life systems, which will never get one:
+- [ ] Decide what to do about servers that can't take a fixed kernel today. That means platforms with no released vendor fix yet (Ubuntu, OpenShift 4) and end-of-life systems, which will never get one:
     - [ ] **Option A:** Move the service to a platform that already has a fixed kernel (safest)
     - [ ] **Option B:** Take internet-facing services offline, or close them to the public internet, until the fix arrives
-    - [ ] **Option C:** Interim controls while you wait: dropping packets that carry IP options, and switching off MPTCP (leaves the most risk behind: a Go team member says the packet filter "may suffice" but nobody has confirmed it, and switching off MPTCP closes only the one demonstrated path)
+    - [ ] **Option C:** Interim controls while you wait: dropping packets that carry IP options, and switching off MPTCP (leaves the most risk behind: Red Hat says the packet filter reduces exposure but can't fully prevent an attack, and switching off MPTCP closes only the one demonstrated path)
 - [ ] Communication plan:
     - [ ] Brief the board if you're publicly traded
     - [ ] Prepare a customer notice in case a service has to go offline
@@ -567,8 +594,8 @@ A clean scanner report proves little yet. At cut-off NVD showed the record as Re
 
 - [ ] Confirm, with evidence, that every internet-facing Linux server runs a fixed kernel and has restarted. Evidence means output from the server (the running kernel version), not a package list or a ticket
 - [ ] Review logs back to at least 29 September 2026, when the fix and its technical explanation first appeared on a public mailing list. That is 16 days before the CVE was published and 28 days before the reporters' write-up. No source we checked reports attacks in the wild, but clean logs prove little: a lost race leaves no crash, and a successful exploit is designed not to crash
-- [ ] Re-check vendor and platform advisories. At cut-off Ubuntu and the Red Hat family had no fixed kernel, the AKS node image of 27 October was below the fix, and no AWS, Google Cloud or Azure security bulletin named the CVE. Microsoft's update guide lists it for Azure Linux with customer action required
-- [ ] Ask your scanner vendor how it judges vendor kernels. At cut-off NVD had no score of its own, the Alpine tracker had no package data and Ubuntu had no notice, so a clean scan proves little
+- [ ] Re-check vendor and platform advisories. On 4 November Ubuntu's fixes were still in testing, OpenShift 4 was still listed as affected, the AKS node image's kernel couldn't be confirmed, and Google Cloud had no bulletin. AWS published bulletin 2026-160-AWS on 31 October, and Microsoft's update guide lists the CVE for Azure Linux with customer action required
+- [ ] Ask your scanner vendor how it judges vendor kernels. NVD still has no score of its own, the Alpine tracker has no package data and Ubuntu has no notice, so a clean scan proves little
 - [ ] Rotate secrets on any server that showed suspicious activity: credentials, keys and tokens stored on it. A successful attacker runs commands as root
 - [ ] Hold a post-incident review with the technical teams
 - [ ] Compliance:
@@ -583,13 +610,13 @@ A clean scanner report proves little yet. At cut-off NVD showed the record as Re
 
 **Lasting improvements:**
 
-- [ ] Retire end-of-life systems for good (Amazon Linux 2 is marked end of support, Debian stretch and buster are end of life, and upstream has no fix for 5.4 and older kernels). Plan the move off the 5.15 and 5.10 kernels too: kernel.org projects their end of life for December 2026
+- [ ] Retire end-of-life systems for good (Amazon Linux 2 is marked end of support, Debian stretch and buster are end of life, the 7.2 kernel line ended on 1 November, and upstream has no fix for 5.4 and older kernels). Plan the move off the 5.15 and 5.10 kernels too: kernel.org projects their end of life for December 2026
 - [ ] Keep a live inventory of every Linux host, including container hosts, Kubernetes nodes and cloud images, with the running kernel, who supplies it and whether it accepts MPTCP connections
 - [ ] Subscribe to your distro's security feed and your cloud provider's bulletins, and, if you run Go services, the Go security announcements
 - [ ] Agree a restart policy: how fast a kernel fix reaches production, who may approve an emergency restart, and when the maintenance windows are
 - [ ] Put internet-facing services behind a proxy that terminates TCP, and lock origin servers to the proxy's IP ranges
 - [ ] Turn MPTCP off wherever no service needs it, and review which services open MPTCP listeners
-- [ ] Ask your hosting and cloud providers whether their networks drop packets with IP options. No AWS, Google Cloud or Azure documentation says so, so treat the answer as unknown until they confirm it
+- [ ] Ask your hosting and cloud providers whether their networks drop packets with IP options. AWS says Global Accelerator does, but no AWS, Google Cloud or Azure documentation says their virtual networks do, so treat the answer as unknown until they confirm it
 - [ ] Add detection for commands that the kernel itself starts (DETECTION & FORENSICS says how)
 - [ ] Check what your scanner sees: does it know vendor kernel builds, or only upstream version numbers?
 - [ ] Review hosting contracts for patch timelines and notification duties
@@ -648,7 +675,7 @@ iptables -t raw -L -n -v
 
 For bigger estates, collect the running kernel (the output of `uname -r`) from every host through your inventory or configuration management tool, not the installed package list alone. A package list says what is installed, and this bug is fixed only in what is running.
 
-Don't test your hosts with proof-of-concept code from public repositories. On 29 and 30 October 2026, 11 GitHub repositories named after the CVE appeared. None is verified, and running unknown code is a common way to get compromised.
+Don't test your hosts with proof-of-concept code from public repositories. By 4 November, 71 GitHub repositories mentioned the CVE, up from 11 on 30 October. None is verified, and running unknown code is a common way to get compromised.
 
 **Document your findings:**
 
@@ -710,22 +737,23 @@ needs-restarting -r
 zypper needs-rebooting
 ```
 
-These commands install a fix only where the vendor has shipped one. They cover Debian, Ubuntu, the RHEL family, Fedora, Oracle Linux, Amazon Linux 2023 and SUSE. On Azure Linux, Alpine and Arch, update the kernel package with the platform's package manager and restart. Option A and Option B say what each platform had at cut-off (30 October 2026, 06:30 UTC).
+These commands install a fix only where the vendor has shipped one. They cover Debian, Ubuntu, the RHEL family, Fedora, Oracle Linux, Amazon Linux 2023 and SUSE. On Azure Linux, Alpine and Arch, update the kernel package with the platform's package manager and restart. Option A and Option B say what each platform had on 4 November 2026.
 
 **Option A: Platforms with a fixed kernel (the fix is the vendor kernel)**
 
-- Debian: fixed in bookworm `linux` `6.1.190-1` (DLA-4841-1, 17 October), bookworm `linux-6.12` `6.12.113-1~deb12u1` (DLA-4850-1, 22 October) and trixie `6.12.113-1` (DSA-6568-1, 16 October). Forky has `7.2.12-1` and sid has `7.2.13-1`. Bullseye is covered through Freexian ELTS: `5.10.272-1` (ELA-1846-1) and `linux-6.1` `6.1.190-1~deb11u1` (ELA-1850-1). Stretch and buster are end of life and unfixed.
-- Oracle Linux: UEK was fixed on 16 October 2026 (Important). ELSA-2026-500397 covers UEK R6 5.4.17-2136.360.3.1 on OL7 and OL8, ELSA-2026-500398 covers UEK R7 5.15.0-325.221.6.4 on OL8 and OL9, and ELSA-2026-500399 covers UEK R8 6.12.0-207.111.5.4 on OL9 and OL10. Ksplice updates for UEK R6, R7 and R8 followed on 19 October. They are the only live patch we confirmed. The Red Hat compatible kernel (RHCK) is pending.
-- SUSE (severity important): fixed `kernel-default` is at least 6.12.0-160000.40.1 for SLE 16.0 and SLE Micro 6.2, 6.4.0-150600.23.143.1 for SLES 15 SP6 LTSS, 5.14.21-150500.55.195.1 for SLES 15 SP5 LTSS and Micro 5.5, and 5.14.21-150400.24.246.1 for SLES 15 SP4 LTSS and Micro 5.3 and 5.4 (advisories SUSE-SU-2026:24386-1 and SUSE-SU-2026:24422-1, dated 24 October). SLES 15 SP7 is in progress. SLE Micro 6.0 and 6.1, SLES 12 SP5 LTSS and SLES 15 SP1 to SP3 LTSS are still affected. SLE 11 SP4 is not affected. No live patch is listed.
-- Amazon Linux 2023 (Important): `kernel6.12` is fixed in 6.12.113-138.209.amzn2023 (ALAS2023-2026-3335, 29 October) and `kernel6.18` in 6.18.56-125.164.amzn2023 (ALAS2023-2026-3251, 24 October). The package named `kernel` (6.1) is pending. Check which package your instances run before you assume the update reaches them. No live patch exists for this CVE.
+- Debian: fixed in bookworm `linux` `6.1.190-1` (DLA-4841-1, 17 October), bookworm `linux-6.12` `6.12.113-1~deb12u1` (DLA-4850-1, 22 October) and trixie `6.12.113-1` (DSA-6568-1, 16 October). Forky has `7.2.12-1` and sid has `7.2.13-1`. Bullseye is covered through Freexian ELTS: `5.10.272-1` (ELA-1846-1) and `linux-6.1` `6.1.190-1~deb11u1` (ELA-1850-1). Stretch and buster are end of life.
+- RHEL family: Red Hat shipped fixed kernels on 1 November (Critical): RHEL 8.10 `kernel` 4.18.0-553.182.1.el8_10 (RHSA-2026:93414), RHEL 9 5.14.0-687.64.1.el9_8 (RHSA-2026:93412) and RHEL 10 6.12.0-211.72.1.el10_2 (RHSA-2026:93413), with EUS, E4S, AUS, TUS and SAP errata after them. RHEL 6 and 7 are not affected. Rocky Linux shipped RLSA-2026:93414, 93412 and 93413 on 3 November, AlmaLinux 8 has ALSA-2026:93414 and 93415, and AlmaLinux 9 and 10 have had fixed kernels in their repositories since 2 November. No kpatch exists.
+- Oracle Linux (Important): UEK was fixed on 16 October 2026. ELSA-2026-500397 covers UEK R6 5.4.17-2136.360.3.1 on OL7 and OL8, ELSA-2026-500398 covers UEK R7 5.15.0-325.221.6.4 on OL8 and OL9, and ELSA-2026-500399 covers UEK R8 6.12.0-207.111.5.4 on OL9 and OL10. Newer UEK errata (ELSA-2026-500572, -500573 and -500574) followed on 2 November, together with the Red Hat compatible kernel (RHCK) errata ELSA-2026-93414 (OL8), -93412 (OL9) and -93413 (OL10). Ksplice updates for UEK R6, R7 and R8 came on 19 October.
+- SUSE (severity important): fixed `kernel-default` is at least 6.12.0-160000.40.1 for SLE 16.0 and SLE Micro 6.2, 6.4.0-150700.53.90.1 for SLES 15 SP7, 6.4.0-150600.23.143.1 for SLES 15 SP6 LTSS, 5.14.21-150500.55.195.1 for SLES 15 SP5 LTSS and Micro 5.5, and 5.14.21-150400.24.246.1 for SLES 15 SP4 LTSS and Micro 5.3 and 5.4. SLE Micro 6.0 and 6.1 are released too, and SLES 12 SP5 is in progress. Live patches are listed for SLE 12 SP5 and 15 SP4 to SP7. SLE 11 SP4 is not affected.
+- Amazon Linux (Important): AL2023 `kernel6.12` is fixed in 6.12.113-138.209.amzn2023 (ALAS2023-2026-3335), `kernel6.18` in 6.18.56-125.164.amzn2023 (ALAS2023-2026-3251) and the package named `kernel` (6.1) in 6.1.189-236.400 (ALAS2023-2026-3365). On AL2 the core kernel is fixed in 4.14.355-287.758 (ALAS2-2026-4065), and so are the 5.4, 5.10 and 5.15 extras. AL2 is still marked end of support, so plan the move off it. No live patch exists for this CVE.
 - Azure Linux 3.0: kernel 6.6.159.1-1.azl3 carries the fix (a Microsoft vendor fix, in the production repository since 20 October 2026). Azure Linux 4.0 is under investigation. Microsoft's update guide lists the CVE for Azure Linux with customer action required.
-- Fedora 43 and 44 (kernel 7.2.13), Arch (`linux` 7.2.11, `linux-lts` 6.18.59) and Alpine (`linux-lts` 6.12.114 on 3.21 and 3.22, 6.18.59 on 3.23, 3.24 and edge) are at or above the fix (inferred). The Alpine tracker has no package data yet.
+- Fedora 44 (kernel 7.2.15), Arch (`linux` 7.2.14, `linux-lts` 6.18.60) and Alpine (`linux-lts` 6.12.114 on 3.21 and 3.22, 6.18.59 on 3.23, 3.24 and edge) are at or above the fix (inferred). The Alpine tracker still has no package data.
 
-**Option B: Platforms with no fixed kernel yet (the vendor has to ship it)**
+**Option B: Platforms with no released fixed kernel yet (the vendor has to ship it)**
 
-- Ubuntu: priority High, and no Ubuntu Security Notice yet. The fix is prepared but not released ("pending") for 22.04 jammy (5.15.0-203.213), 24.04 noble (6.8.0-149.149), 26.04 resolute (7.0.0-43.43) and 26.10 (7.3.0-10.10). The aws, azure, gcp, oracle and gke kernel variants are also pending on jammy and noble. 20.04, 18.04 and 16.04 are marked "needed": affected, no fix yet. 14.04 is not affected. Ubuntu lists no Livepatch fix.
-- RHEL family: RHEL 8 and 9 (`kernel` and `kernel-rt`), RHEL 10 (`kernel`) and OpenShift 4 (RHCOS 8 and 9) are affected, with no fix or RHSA yet. RHEL 6 and 7 are not affected. Red Hat states that no mitigation meets its criteria. Bugzilla 2553390 is NEW, and no kpatch exists. AlmaLinux 8, 9 and 10 and Rocky Linux 8, 9 and 10 have no advisory yet and follow RHEL.
-- Amazon Linux 2: the core kernel and the 5.4, 5.10 and 5.15 extras are pending, and AL2 is marked end of support, so plan the move off it. No live patch exists for this CVE.
+- Ubuntu: priority critical since 3 November, and no Ubuntu Security Notice yet. Canonical said on 2 November that the fixes are in the -proposed pocket for testing, prepared for 22.04 jammy (5.15.0-203.213), 24.04 noble (6.8.0-149.149), 26.04 resolute (7.0.0-43.43) and 26.10 (7.3.0-10.10). The aws, azure, gcp, gke and oracle flavours on jammy and noble are still pending. 20.04, 18.04 and 16.04 are marked "needed": affected, no fix yet. 14.04 is not affected. Ubuntu lists no Livepatch fix, and Canonical calls updates "the only appropriate mitigation".
+- OpenShift 4 (RHCOS 8 and 9): still listed as affected. Red Hat's bulletin notes that its packet filter doesn't cover pod-to-pod traffic in OpenShift.
+- CentOS Stream 9 and 10: the newest kernels (28 October) don't name the CVE.
 
 While you wait for a vendor fix, in order of preference:
 
@@ -735,20 +763,20 @@ While you wait for a vendor fix, in order of preference:
 4. Put internet-facing services behind a proxy that terminates TCP, and lock the origin to the proxy's IP ranges.
 5. Check the vendor page every day, and patch the day a fixed kernel appears.
 
-Red Hat states that no mitigation meets its criteria, so treat every measure below as interim. Vendor state was still moving at cut-off: Ubuntu's tracker was updated with staged fixes on 29 October at 22:56 UTC, and SUSE's CVE page listed its 24 October advisories on 29 October. Re-check before you rely on a "no fix yet".
+Treat every measure below as interim. Red Hat now publishes a packet filter (RHSB-2026-016) and says it reduces exposure but can't fully prevent exploitation, and Canonical says updates are the only appropriate mitigation. Vendor state moved fast between 30 October and 4 November, so re-check before you rely on a "no fix yet".
 
 **Option C: Containers and Kubernetes nodes (patch the node)**
 
 - Containers share the host kernel, so patch the node. Rebuilding or redeploying images changes nothing for this bug.
 - Restart or replace nodes in batches that your workloads can absorb, and take each node out of rotation first. A node keeps its old kernel until it restarts or is replaced by a node image that carries the fix.
-- On a managed service, the node image decides. State at cut-off:
-    - GKE Container-Optimized OS (inferred): m121 (6.6.159), m125 and m129 (6.12.113) are at the fix. m113 (6.1.161), m117 (6.6.157) and m133 (6.18.55) are below it. No GKE bulletin names the CVE.
-    - EKS: AL2023 AMI v20261026 (27 October) ships the fixed 6.18.56-125.164 and 6.12.113-138.209 kernels. Its 6.1.189 variant is not fixed.
-    - Bottlerocket: kernel-kit 9.6.1 has the fixed builds. The latest OS release, v1.68.0 (27 October), still uses kernel-kit 9.6.0, which is before the fix, so it is pending.
-    - AKS: node image 202610.16.1 (27 October) runs kernels below the fix for both Azure Linux and Ubuntu. Pending.
+- On a managed service, the node image decides. State on 4 November:
+    - GKE Container-Optimized OS: the release notes for m121, m125, m129 and m133 name the fix (m133 in cos-133-19999-44-174, 30 October), but GKE's release notes still listed 44-159 for 1.37. On 30 October m113 (6.1.161) and m117 (6.6.157) were below it (inferred). No GKE bulletin names the CVE.
+    - EKS: AL2023 AMI v20261031 is fixed, per AWS bulletin 2026-160-AWS. v20261026 (27 October) had fixed only the 6.18 and 6.12 kernels.
+    - Bottlerocket: v1.68.1 (2 November) uses kernel-kit 9.6.2 and carries the fix. v1.68.0 (27 October) didn't.
+    - AKS: the release tracker shows node image 202610.23.0 as current. We couldn't confirm its kernels. Node image 202610.16.1 (27 October) was below the fix for both Azure Linux and Ubuntu.
     - Flatcar: stable 4757.2.2 and later, and LTS 4081.3.11 and later (inferred fixed).
     - Talos: v1.14.3 and later (inferred fixed).
-    - OpenShift 4 (RHCOS 8 and 9): affected, no fix yet.
+    - OpenShift 4 (RHCOS 8 and 9): still listed as affected.
 - kube-proxy and similar L4 forwarding pass packets, IP options included, to pods. An ingress controller that terminates TCP shields the pods behind it, but it is itself exposed. Traefik, for example, is a Go program that opens MPTCP listeners by default.
 - Every pod or container network namespace starts with MPTCP enabled on upstream kernels, and a host sysctl doesn't change that. The per-namespace command is under Close the demonstrated MPTCP path below.
 
@@ -758,16 +786,16 @@ Installing the package is half the job. The old kernel keeps running until the h
 
 **Can't patch today? Narrow the exposure.** This is a bridge, not a fix. DEFENSE-IN-DEPTH MEASURES has the full list.
 
-- Drop inbound IPv4 TCP packets that carry IP options, on the host or at the network edge where your edge can match them. A Go team member says this "may suffice". It is unconfirmed.
+- Drop inbound IPv4 TCP packets that carry IP options, on the host or at the network edge where your edge can match them. Red Hat, AlmaLinux and AWS now publish rules for this. Red Hat says the filter reduces exposure but "cannot fully prevent" exploitation.
 - Close the demonstrated path: turn MPTCP off, then restart the services that listen on the network.
 - Put internet-facing services behind a proxy that terminates TCP, and lock origins to the proxy's IP ranges.
 - Edge filtering: Cloudflare Network Firewall (Magic Firewall, for Magic Transit customers) has the fields `ip.hdr_len` and `ip.opt.type`, which can match packets with options. Cloudflare WAF rules work on HTTP and can't see IP options. Cloud security groups and network ACLs can't match IP options either.
 - Setting `net.ipv4.conf.*.accept_source_route=0` does not help: the kernel checks it only for source-route options (LSRR and SSRR), not for Record Route or Timestamp.
 - Write down each interim measure and the date it comes off.
 
-**Interim filter: drop inbound IPv4 TCP packets that carry IP options (may suffice, unconfirmed)**
+**Interim filter: drop inbound IPv4 TCP packets that carry IP options (reduces exposure, not a fix)**
 
-Use this while you wait for a fix or a restart window. A Go team member wrote on Go issue 82717 that dropping IPv4 TCP packets that carry IP options "may suffice". Nobody has confirmed that, so treat the filter as a way to narrow the exposure, and patch anyway.
+Use this while you wait for a fix or a restart window. A Go team member wrote on Go issue 82717 that dropping IPv4 TCP packets that carry IP options "may suffice". Red Hat now recommends the same filter in bulletin RHSB-2026-016, in preference to turning MPTCP off, and says it reduces exposure but "cannot fully prevent" exploitation. AlmaLinux and AWS publish similar rules. Red Hat and a CIQ kernel engineer both note that it misses traffic between pods or containers on the same host. Treat the filter as a way to narrow the exposure, and patch anyway.
 
 - Cover all TCP packets, not only SYNs. Under a SYN flood the kernel switches to syncookies and reads the options again from the final ACK of the handshake (a comment in net/ipv4/syncookies.c says so).
 - RFC 7126 recommends dropping Record Route and Timestamp options by default, so legitimate internet traffic with them is rare. Router Alert (used by IGMP and RSVP) is not TCP, so a rule scoped to TCP leaves it alone.
@@ -872,7 +900,7 @@ iptables -t raw -L PREROUTING -v -n
 - [ ] Watch for the IPv6 follow-up. The CVE text says a separate patch will fix the same migration issue in the IPv6 request socket code. As of 30 October 2026 there is no maintainer patch and no CVE for it
 - [ ] On hosts still waiting for a fix, watch the kernel log for oops and panic messages. DETECTION & FORENSICS says which ones matter
 
-*Sources: Debian security tracker and advisories, Debian ELTS (Freexian), Ubuntu CVE tracker, Red Hat CVE page and Bugzilla, SUSE, Oracle Linux and Amazon Linux security pages, Microsoft update guide, Fedora, Arch and Alpine package versions (inferred), GKE, EKS, AKS, Bottlerocket, Flatcar and Talos release notes, Go security team announcement and Go issue 82717, Go godebug documentation, Linux kernel MPTCP and IP sysctl documentation, nftables and iptables documentation, RFC 7126, Cloudflare Network Firewall documentation (all checked on 30 October 2026)*
+*Sources: Debian security tracker and advisories, Debian ELTS (Freexian), Ubuntu CVE tracker, Red Hat CVE page and Bugzilla, SUSE, Oracle Linux and Amazon Linux security pages, Microsoft update guide, Fedora, Arch and Alpine package versions (inferred), GKE, EKS, AKS, Bottlerocket, Flatcar and Talos release notes, Go security team announcement and Go issue 82717, Go godebug documentation, Linux kernel MPTCP and IP sysctl documentation, nftables and iptables documentation, RFC 7126, Cloudflare Network Firewall documentation (all checked on 30 October 2026), and Red Hat errata and bulletin RHSB-2026-016, Rocky Linux and AlmaLinux errata, Canonical blog, AWS bulletin 2026-160-AWS and the AKS release tracker (4 November 2026)*
 
 #### DETECTION & FORENSICS (Day 2-3)
 
@@ -1037,33 +1065,35 @@ The write-up says the final command runs as root. Root reads every file and the 
 
 #### DEFENSE-IN-DEPTH MEASURES
 
-The fix is a patched kernel and a reboot. Red Hat says no mitigation meets its criteria, and the Go security team calls disabling MPTCP program by program "a fragile mitigation" and says the best fix is a patched kernel. Everything in this section buys time or narrows the exposure. None of it removes the bug. The table below shows which control can filter each path to the kernel.
+The fix is a patched kernel and a reboot. Red Hat says its own packet filter reduces exposure but can't fully prevent exploitation, Canonical calls updates "the only appropriate mitigation", and the Go security team calls disabling MPTCP program by program "a fragile mitigation" and says the best fix is a patched kernel. Everything in this section buys time or narrows the exposure. None of it removes the bug. The table below shows which control can filter each path to the kernel.
 
 | Path to the kernel | Can it filter IP options? | Switch you control | Full fix |
 | --- | --- | --- | --- |
 | Direct connection from the internet to the host | Only a filter on the host, or at an edge you control, that reads IP headers | An nftables or iptables rule on IP options | Patched kernel and a reboot |
-| TCP-terminating proxy in front (Cloudflare proxy, AWS ALB, CloudFront, any reverse proxy) | The proxy opens its own connection to the origin, so the attacker's options do not reach the origin kernel (our reasoning, not a vendor statement) | Lock the origin to the proxy's IP ranges | Patched kernel on the origin. The proxy's own kernel is its operator's job |
+| TCP-terminating proxy in front (Cloudflare proxy, AWS ALB, CloudFront, any reverse proxy) | The proxy opens its own connection to the origin, so the attacker's options do not reach the origin kernel. AWS says customers behind ALB, CloudFront, API Gateway and NLB TLS listeners don't receive TCP connections from untrusted sources directly | Lock the origin to the proxy's IP ranges | Patched kernel on the origin. The proxy's own kernel is its operator's job |
+| AWS Global Accelerator | Yes. AWS says it drops every incoming IPv4 packet that carries IP options | Nothing to set | Patched kernel |
 | Outbound tunnel (for example Cloudflare Tunnel) | No internet-facing listener exists | Keep the origin closed to inbound traffic | Patched kernel |
-| L4 passthrough load balancer (AWS NLB, Google Cloud passthrough network load balancers) | Packets are forwarded, and no documentation says that options are stripped. Treat the service as exposed | Filter on the host | Patched kernel |
-| Cloud virtual network, security groups, network ACLs | No AWS, Google Cloud or Azure documentation says that their networks drop or strip IPv4 options, so treat it as unknown. Security groups and network ACLs cannot match IP options | None at this layer | Patched kernel |
+| L4 passthrough load balancer (AWS NLB with TCP listeners, Google Cloud passthrough network load balancers) | Packets are forwarded, and no documentation says that options are stripped. Treat the service as exposed | Filter on the host | Patched kernel |
+| Cloud virtual network, security groups, network ACLs | No AWS, Google Cloud or Azure documentation says that their networks drop or strip IPv4 options, so treat it as unknown. AWS's own interim rules filter at the instance or in AWS Network Firewall. Security groups and network ACLs cannot match IP options | None at this layer | Patched kernel |
 | Cloudflare Magic Transit with Network Firewall (Magic Firewall) | Yes. The fields ip.hdr_len and ip.opt.type match packets with options | A Network Firewall rule on those fields | Patched kernel |
 | Cloudflare WAF rules | No. They work on HTTP and cannot see IP options | None | Patched kernel |
 | Container traffic through kube-proxy or other L4 forwarding | No. Packets, IP options included, reach the pods | A filter on the node (check your CNI) | Patched node |
 
 **Scanner and feed coverage**
 
-A clean scanner report proves little yet. We have not tested any scanner product against this CVE, so we cannot say which ones detect it. Here is what the data feeds held at the cut-off:
+A clean scanner report still proves little. We have not tested any scanner product against this CVE, so we cannot say which ones detect it. Here is what the data feeds held on 4 November:
 
-| Source | State on 30 October 2026 | What it means |
+| Source | State on 4 November 2026 | What it means |
 | --- | --- | --- |
 | NVD | Status "Received", no NVD score. The page shows the CNA's 9.8 | The record is not analysed yet, so expect gaps in tools that wait for NVD |
 | GitHub advisory GHSA-qp6h-4hvh-qqqc | Critical 9.8, unreviewed | A pointer, not a reviewed record |
-| Distro trackers | Debian, SUSE, Amazon Linux, Oracle (UEK) and Azure Linux have fixed kernels for some releases. Ubuntu is Priority High with no notice and its fixes are pending. Red Hat lists RHEL 8, 9 and 10 as affected with no fix | Ubuntu and RHEL have no released fixed package, so no host there can be shown as fixed yet |
-| CISA KEV | Not listed (catalog 2026.10.29) | A queue that ranks by KEV will not raise it |
-| EPSS | 0.00388 (32.8th percentile) on 29 October 2026 | A queue that ranks by EPSS will place it low. Rank by exposure instead |
-| Platforms where we inferred the status | Alpine, Fedora, Arch, GKE Container-Optimized OS, Flatcar and Talos | The vendor's kernel version was compared with the upstream fixed versions, and no vendor notice names the CVE. Confirm with the vendor when a notice appears |
+| Distro trackers | Debian, Red Hat and its rebuilds, SUSE, Amazon Linux, Oracle and Azure Linux have fixed kernels. Ubuntu is priority critical with no notice, and its fixes are in testing | Ubuntu has no released fixed package, so no Ubuntu host can be shown as fixed yet |
+| Scanners | Tenable lists 73 plugins, Rapid7 and Snyk have entries, Fortinet has an IPS signature. No nuclei template, and no Emerging Threats Open or Snort community rule | Coverage of distro kernel packages, not proof of exposure |
+| CISA KEV | Not listed (catalog 2026.11.03) | A queue that ranks by KEV will not raise it |
+| EPSS | 0.0076 (55.3rd percentile) on 3 November 2026 | A queue that ranks by EPSS will place it in the middle. Rank by exposure instead |
+| Platforms where we inferred the status | Alpine, Fedora, Arch, Flatcar and Talos | The vendor's kernel version was compared with the upstream fixed versions, and no vendor notice names the CVE. Confirm with the vendor when a notice appears |
 
-*Sources: NVD, GitHub Advisory Database, Debian, Ubuntu, Red Hat, Oracle and Microsoft trackers, CISA KEV catalog 2026.10.29, FIRST EPSS API, kernel.org release pages, all as of the data cut-off*
+*Sources: NVD, GitHub Advisory Database, Debian, Ubuntu, Red Hat, Rocky Linux, AlmaLinux, SUSE, Amazon Linux, Oracle and Microsoft trackers, Tenable, Rapid7, Snyk, Fortinet PSIRT, nuclei-templates, Emerging Threats Open and Snort community rules, CISA KEV catalog 2026.11.03, FIRST EPSS API, kernel.org release pages, checked on 4 November 2026*
 
 **The version number trap.** There are two traps here. The first is the running kernel. A host that installed the fixed package and has not rebooted still runs the old kernel, and `uname -r` still shows it. Compare the running kernel, not the installed package. The second is the number itself. Vendors backport fixes, so a fixed vendor kernel need not match any fixed upstream release. Oracle's fixed UEK R6 kernel is 5.4.17-2136.360.3.1, and upstream has no fix for 5.4 or older. SUSE's fixed kernel for SLES 15 SP5 LTSS is 5.14.21-150500.55.195.1. Take the fixed version from the vendor's advisory, and use the list of fixed upstream releases only for kernels built straight from upstream. Where we inferred a platform's status from its version number, check again when the vendor publishes a notice.
 
@@ -1077,7 +1107,7 @@ None of these is complete. A patched kernel and a reboot are the only complete f
 
 | Stopgap | Helps against | Leaves open | Side effects |
 | --- | --- | --- | --- |
-| Drop inbound IPv4 TCP packets that carry IP options (nftables or iptables) | The demonstrated path, which uses options on the attacker's packets. A Go team member says this "may suffice" (Go issue 82717). That is unconfirmed | Traffic that bypasses the host's netfilter hooks, such as CNI plugins with eBPF datapaths, and every host you forgot | Hosts that use CIPSO labels carry options on purpose. Test first. The rules are not persistent |
+| Drop inbound IPv4 TCP packets that carry IP options (nftables or iptables) | The demonstrated path, which uses options on the attacker's packets. Red Hat recommends it, and says it reduces exposure but "cannot fully prevent" exploitation | Traffic that bypasses the host's netfilter hooks, such as CNI plugins with eBPF datapaths, traffic between pods or containers on the same host, and every host you forgot | Hosts that use CIPSO labels carry options on purpose. Test first. The rules are not persistent |
 | Set `net.mptcp.enabled=0` and restart the listeners | The demonstrated MPTCP path | Plain TCP stays exposed to the underlying bug. Existing MPTCP listeners keep accepting MPTCP until their service restarts | The setting is per network namespace, and new containers start at 1 again. A service that insists on MPTCP can fail to open its socket. Go programs fall back to plain TCP |
 | `GODEBUG=multipathtcp=0` for each Go program | The Go MPTCP default | Code that calls SetMultipathTCP(true), programs not written in Go, plain TCP | The Go team calls the per-program approach fragile. It needs a restart or a rebuild |
 | Lock the origin to the proxy's IP ranges, behind a TCP-terminating proxy | Direct attacker packets to the origin | The proxy's own kernel, and any other listener on the origin | Needs a maintained list of ranges |
@@ -1089,19 +1119,19 @@ None of these is complete. A patched kernel and a reboot are the only complete f
 
 **Edge architecture**
 
-**Option 1: put a TCP-terminating proxy in front and lock the origin.** Some services reach the internet only through a proxy that terminates TCP: the Cloudflare proxy, AWS ALB, CloudFront or any reverse proxy. The proxy opens its own connection to the origin, so the attacker's IPv4 options do not reach the origin kernel. That is our reasoning, not a vendor statement. It holds only if nothing can reach the origin directly. Lock the origin firewall to the proxy's IP ranges, then test from outside your network that the origin's own address no longer answers. The proxy's own kernel is the proxy operator's problem.
+**Option 1: put a TCP-terminating proxy in front and lock the origin.** Some services reach the internet only through a proxy that terminates TCP: the Cloudflare proxy, AWS ALB, CloudFront or any reverse proxy. The proxy opens its own connection to the origin, so the attacker's IPv4 options do not reach the origin kernel. AWS's bulletin says customers behind ALB, CloudFront, API Gateway and NLB TLS listeners don't receive TCP connections from untrusted sources directly when they follow its best practices, and that Global Accelerator drops every IPv4 packet that carries IP options. It holds only if nothing can reach the origin directly. Lock the origin firewall to the proxy's IP ranges, then test from outside your network that the origin's own address no longer answers. The proxy's own kernel is the proxy operator's problem.
 
 **Option 2: publish through an outbound tunnel.** A service published only through an outbound tunnel (Cloudflare Tunnel, for example) has no internet-facing listener, so there is nothing for the attacker to connect to. Close the inbound ports at the origin so that the tunnel is the only way in.
 
 **Option 3: drop packets with options at the edge.** Magic Transit customers can use Cloudflare Network Firewall (Magic Firewall), which has the fields ip.hdr_len and ip.opt.type for matching packets that carry IP options. Cloudflare WAF rules work on HTTP and cannot see IP options.
 
-**Option 4: do not count on the cloud network or on passthrough load balancers.** No AWS, Google Cloud or Azure documentation says that their virtual networks drop or strip IPv4 options, so treat that as unknown. Security groups and network ACLs cannot match IP options. L4 passthrough load balancers (AWS NLB, Google Cloud passthrough network load balancers) forward packets, and no documentation says that they strip options. Services behind them are exposed, so filter on the host.
+**Option 4: do not count on the cloud network or on passthrough load balancers.** No AWS, Google Cloud or Azure documentation says that their virtual networks drop or strip IPv4 options, so treat that as unknown. Security groups and network ACLs cannot match IP options. L4 passthrough load balancers (AWS NLB with TCP listeners, Google Cloud passthrough network load balancers) forward packets, and no documentation says that they strip options. Services behind them are exposed, so filter on the host. AWS's bulletin gives an instance-level iptables rule and an AWS Network Firewall rule for that.
 
 *Sources: Cloudflare Network Firewall field reference, AWS, Google Cloud and Azure networking documentation (none says that IP options are removed)*
 
 **IP options filtering as a standing baseline**
 
-RFC 7126 recommends dropping Record Route and Timestamp options by default, so legitimate internet traffic that carries them is rare. Router Alert (used by IGMP and RSVP) is not TCP, so scoping the rule to TCP leaves it alone. That makes the rule cheap to keep on internet-facing hosts after this CVE, and not only as a stopgap. A Go team member says on Go issue 82717 that dropping IPv4 TCP packets with IP options "may suffice". That is unconfirmed, so treat the rule as a layer and not as a fix.
+RFC 7126 recommends dropping Record Route and Timestamp options by default, so legitimate internet traffic that carries them is rare. Router Alert (used by IGMP and RSVP) is not TCP, so scoping the rule to TCP leaves it alone. That makes the rule cheap to keep on internet-facing hosts after this CVE, and not only as a stopgap. Red Hat recommends the rule and says it reduces exposure but "cannot fully prevent" exploitation, so treat it as a layer and not as a fix.
 
 Four points decide whether the rule works:
 
@@ -1189,7 +1219,7 @@ Third party programs are in scope too. The go.mod files of the latest releases o
 | Application code | An explicit `SetMultipathTCP(true)` | Not a switch. It overrides GODEBUG, so none of the settings above stops a program that calls it. Search your code for it |
 | Kernel | `net.mptcp.enabled=0` | Go falls back to plain TCP without a rebuild. When the kernel refuses MPTCP sockets (ENOPROTOOPT), Go falls back silently |
 
-Build policy: pin the setting in the main module of every Go service you build, so that a later rebuild keeps it. Deploy policy: set GODEBUG in the service definition of every Go service you run, third party ones included, and read the build info with `go version -m` to confirm what a binary ships with (see Fleet inventory at scale under DETECTION & FORENSICS). The Go team calls the per-program approach fragile, so treat both as a layer on top of the kernel setting and the patch. Go has not changed its defaults. The proposal to disable MPTCP by default (issue 82717) was still open on 30 October 2026, and the Go team calls a change premature.
+Build policy: pin the setting in the main module of every Go service you build, so that a later rebuild keeps it. Deploy policy: set GODEBUG in the service definition of every Go service you run, third party ones included, and read the build info with `go version -m` to confirm what a binary ships with (see Fleet inventory at scale under DETECTION & FORENSICS). The Go team calls the per-program approach fragile, so treat both as a layer on top of the kernel setting and the patch. Go has not changed its defaults. The proposal to disable MPTCP by default (issue 82717) was still undecided on 4 November 2026, and the Go team calls a change premature.
 
 *Sources: Go 1.24 release notes, Go godebug documentation, Go security team announcement (29 October 2026), Go issue 82717, go.mod files of the latest releases (30 October 2026)*
 
@@ -1206,7 +1236,7 @@ Build policy: pin the setting in the main module of every Go service you build, 
 - Installing the fixed kernel package without rebooting. The running kernel stays vulnerable until the reboot.
 - Counting on a quiet kernel log. Clean logs prove nothing.
 - Limits inside the service: a non-root user, a read-only file system, dropped capabilities. The write-up describes a command that runs as root and starts from kernel context, so, in our reading, these limits would not contain it.
-- Code from public repositories that call themselves checkers, mitigations or live patches. None of the 11 repositories we saw is verified.
+- Code from public repositories that call themselves checkers, mitigations or live patches. None of the 71 repositories that mentioned the CVE on 4 November is verified.
 
 *Sources: Linux kernel IP sysctl documentation, nftables manual, Linux kernel source (net/ipv4/syncookies.c), Cloudflare documentation, AWS documentation, Go security team announcement (29 October 2026), the write-up published by the team that reported the bug (27 October 2026)*
 
@@ -1216,14 +1246,14 @@ Build policy: pin the setting in the main module of every Go service you build, 
 
 Containers share the host kernel, so patching an image does nothing for this bug. Patch and reboot the node, or replace it with a node image that carries the fixed kernel. Everything below that is a stopgap.
 
-**Node patching:** roll the node pool, not the pods. A node that has not been replaced or rebooted since the fixed image shipped still runs the old kernel. No AWS, Google Cloud or Azure security bulletin named the CVE on 29 and 30 October 2026, and Microsoft's update guide lists it for Azure Linux with customer action required. This is the state of the managed node images at the cut-off:
+**Node patching:** roll the node pool, not the pods. A node that has not been replaced or rebooted since the fixed image shipped still runs the old kernel. AWS bulletin 2026-160-AWS (31 October) names the CVE, no Google Cloud or GKE bulletin does, and Microsoft's update guide lists it for Azure Linux with customer action required. This is the state of the managed node images on 4 November:
 
-| Platform | State on 30 October 2026 |
+| Platform | State on 4 November 2026 |
 | --- | --- |
-| EKS, AL2023 AMI v20261026 (27 October 2026) | Ships the fixed 6.18.56-125.164 and 6.12.113-138.209 kernels. Its 6.1.189 variant is not fixed |
-| AKS, node image 202610.16.1 (27 October 2026) | Runs kernels below the fix, for both Azure Linux and Ubuntu. Pending |
-| GKE Container-Optimized OS | At the fix (inferred): m121 (6.6.159), m125 and m129 (6.12.113). Below the fix (inferred): m113 (6.1.161), m117 (6.6.157), m133 (6.18.55). No GKE bulletin names the CVE |
-| Bottlerocket | kernel-kit 9.6.1 has the fixed builds. The latest OS, v1.68.0 (27 October 2026), still uses kernel-kit 9.6.0, so it is pending |
+| EKS, AL2023 AMI | Fixed in v20261031, per AWS bulletin 2026-160-AWS. v20261026 (27 October) had fixed only the 6.18 and 6.12 kernels. The ECS-optimized AMI 20261031 is fixed too |
+| AKS | The release tracker shows node image 202610.23.0 as current, kernels not confirmed. 202610.16.1 (27 October) was below the fix for both Azure Linux and Ubuntu |
+| GKE Container-Optimized OS | The release notes for m121, m125, m129 and m133 name the fix (m133 in cos-133-19999-44-174, 30 October), but GKE's release notes still listed 44-159 for 1.37. Below the fix on 30 October (inferred): m113 (6.1.161), m117 (6.6.157). No GKE bulletin names the CVE |
+| Bottlerocket | Fixed in v1.68.1 (2 November 2026), which uses kernel-kit 9.6.2. v1.68.0 (27 October) was before the fix |
 | Flatcar | Stable 4757.2.2 and later, and LTS 4081.3.11 and later (inferred fixed) |
 | Talos | v1.14.3 and later (inferred fixed) |
 
@@ -1271,7 +1301,7 @@ needs-restarting -r
 zypper needs-rebooting
 ```
 
-**Live patching.** Only Oracle Ksplice is confirmed: updates for UEK R6, R7 and R8 appeared on 19 October 2026. We found none from Ubuntu Livepatch (no Livepatch fix is listed), RHEL kpatch (Red Hat's Bugzilla entry 2553390 is NEW and no kpatch exists), SUSE live patching (none is listed) or Amazon Linux (none for this CVE). Plan on the reboot unless you run Oracle UEK with Ksplice. The descriptions of the 11 public repositories named after the CVE include checkers, mitigations, audits and a livepatch, and none is verified. A live patch loads code into your running kernel, so do not install one that does not come from your vendor.
+**Live patching.** Three vendors have one. Oracle Ksplice updates for UEK R6, R7 and R8 appeared on 19 October 2026, SUSE lists live patches for SLE 12 SP5 and 15 SP4 to SP7 (for example SUSE-SU-2026:5059-1, 3 November), and TuxCare's KernelCare covers Debian 13 at least. We found none from Ubuntu Livepatch (no Livepatch fix is listed), RHEL kpatch (Red Hat's Bugzilla entry 2553390 is still NEW and no kpatch exists) or Amazon Linux (none for this CVE). Plan on the reboot unless you run one of those three. Public repositories that mention the CVE include some that call themselves a livepatch, and none is verified. A live patch loads code into your running kernel, so do not install one that does not come from your vendor.
 
 *Sources: Debian, Ubuntu, Red Hat, SUSE, Amazon Linux and Oracle advisories and trackers, Red Hat Bugzilla 2553390, kernel.org release pages and the netdev list archive*
 
@@ -1391,7 +1421,7 @@ In the reporters' proof of concept, the first stage took 48 minutes and the seco
 
 **The window to review:**
 
-No exploitation has been reported. At the data cut-off (30 October 2026, 06:30 UTC) Rapid7 lists exploited_in_wild as false, Wiz and Feedly show no evidence, and CISA's Known Exploited Vulnerabilities catalog does not list the CVE. The reporters' write-up describes a working exploit, but no exploit code was published and no release was announced. We found no advisory that names the CVE at CERT-Bund, CERT-FR, NCSC UK, NCSC NL, CCCS, JPCERT or CERT-In, but some of those feeds covered only the last few days, so that is weak evidence. No public exposure counts exist.
+No exploitation has been reported. On 4 November Rapid7 lists exploited_in_wild as false, Wiz and Feedly show no evidence, Previdian says "No Exploitation Yet", AWS has "no evidence" of use, Fortinet lists it as not known exploited, and CISA's Known Exploited Vulnerabilities catalog does not list the CVE. The reporters' write-up describes a working exploit, but no exploit code was published and no release was announced. The CERT advisories that now name the CVE (NCSC-NL, CCCS, CERT-FR, HKCERT) report no attacks. No public exposure counts exist.
 
 | Window | Starts | Use it when |
 | --- | --- | --- |
@@ -1401,9 +1431,9 @@ No exploitation has been reported. At the data cut-off (30 October 2026, 06:30 U
 
 The window ends when each host booted a fixed kernel, not on the day you installed the package.
 
-*Sources: kernel.org CVE record and release notes, netdev list archive (29 September 2026), the write-up published by the team that reported the bug (27 October 2026), CISA KEV catalog 2026.10.29, Rapid7, Wiz and Feedly pages, national CERT feeds checked on 30 October 2026*
+*Sources: kernel.org CVE record and release notes, netdev list archive (29 September 2026), the write-up published by the team that reported the bug (27 October 2026), CISA KEV catalog 2026.11.03, Rapid7, Wiz, Feedly and Previdian pages, AWS bulletin 2026-160-AWS, Fortinet PSIRT, NCSC-NL, CCCS, CERT-FR and HKCERT advisories, GitHub repository search (4 November 2026)*
 
-**Public repositories named after the CVE:** 11 GitHub repositories named after the CVE appeared on 29 and 30 October 2026. None is verified. Most describe themselves as checkers, mitigations, audits or a livepatch, and one claims a race trigger. Running unknown proof-of-concept code is a common way to get compromised, so do not test your hosts with it. If anyone on your team ran one against a real host or a laptop, treat that machine as suspect. We have no hashes, addresses or request signatures for this CVE, so there is nothing to put on a blocklist.
+**Public repositories named after the CVE:** 71 GitHub repositories mentioned the CVE on 4 November, up from 11 on 30 October. None is verified. Their descriptions include checkers, mitigations, audits, a livepatch, a trigger that says it does no code execution, and a "lab root-shell kit" that says it is not a stock remote exploit. Running unknown proof-of-concept code is a common way to get compromised, so do not test your hosts with it. If anyone on your team ran one against a real host or a laptop, treat that machine as suspect. We have no hashes, addresses or request signatures for this CVE, so there is nothing to put on a blocklist.
 
 **When to bring in outside help:**
 
@@ -1429,7 +1459,7 @@ The scenarios stay qualitative. No source for this bug gives cost figures, so no
 
 - Staff time: finding every Linux host, node and appliance that accepts inbound IPv4 TCP, then a kernel update, a reboot and checks for each
 - Testing: a regression pass per critical service. A new kernel is a bigger change than a library update, so confirm that each host boots it and that networking, storage and services come back
-- Reboots: the running kernel stays vulnerable until the host restarts. Where no fix had shipped at the data cut-off (Ubuntu and the Red Hat family), the cost is a stopgap now and a second change window when the fix lands
+- Reboots: the running kernel stays vulnerable until the host restarts. Where no fix has shipped yet (Ubuntu on 4 November), the cost is a stopgap now and a second change window when the fix lands
 - End-of-life upgrades: a move to a supported distribution or kernel for every host on a line with no upstream fix (5.4 and older) and no vendor backport
 - Downtime: none if you reboot one node at a time behind a load balancer, a maintenance window for a single host
 
@@ -1445,7 +1475,7 @@ The scenarios stay qualitative. No source for this bug gives cost figures, so no
 
 #### Scenario 2: Breach through an exposed internet-facing server
 
-**How it plays out:** an attacker with no credentials sends crafted connection requests to an MPTCP listener, wins a timing race in the kernel and runs a shell command as root. With root, the attacker reads the secrets the host holds and moves on to the databases, cloud accounts and internal services those secrets open. Then data theft or extortion. The reporters' write-up (27 October 2026) describes this against servers with an MPTCP listener, with a proof of concept that took 48 minutes to leak a kernel pointer and 5 more minutes to reach command execution. A lost race only fails the handshake, so the attacker can retry. This is a plausible chain, not an observed one: no exploitation in the wild had been reported at the data cut-off (30 October 2026, 06:30 UTC).
+**How it plays out:** an attacker with no credentials sends crafted connection requests to an MPTCP listener, wins a timing race in the kernel and runs a shell command as root. With root, the attacker reads the secrets the host holds and moves on to the databases, cloud accounts and internal services those secrets open. Then data theft or extortion. The reporters' write-up (27 October 2026) describes this against servers with an MPTCP listener, with a proof of concept that took 48 minutes to leak a kernel pointer and 5 more minutes to reach command execution. A lost race only fails the handshake, so the attacker can retry. This is a plausible chain, not an observed one: no exploitation in the wild had been reported by 4 November 2026.
 
 **Costs:**
 
@@ -1481,7 +1511,7 @@ The scenarios stay qualitative. No source for this bug gives cost figures, so no
 **Costs:**
 
 - Exposure for as long as the vendor takes, with the fix out of your hands
-- Compensating controls in the meantime: take management and service ports off untrusted networks, put the device behind a firewall or a TCP-terminating proxy, and drop inbound IPv4 TCP packets that carry IP options in front of it where your firewall can match them (may suffice, unconfirmed)
+- Compensating controls in the meantime: take management and service ports off untrusted networks, put the device behind a firewall or a TCP-terminating proxy, and drop inbound IPv4 TCP packets that carry IP options in front of it where your firewall can match them (Red Hat says this reduces exposure but can't fully prevent an attack)
 - Chasing the vendor for a written answer on whether the device is affected and when a fix ships
 - Replacement or isolation if the vendor won't ship a fix. A device on a line that nobody patches stays vulnerable
 
@@ -1503,7 +1533,7 @@ The scenarios stay qualitative. No source for this bug gives cost figures, so no
 
 - Confirm the running kernel (not the installed package) on every host after the reboot
 - Network and host log review over the window set out under ADVANCED FORENSICS, and further back where your retention allows
-- Chasing vendors, cloud providers and appliance suppliers for written answers, and for the fixes that were still pending at the data cut-off
+- Chasing vendors, cloud providers and appliance suppliers for written answers, and for the fixes still pending on 4 November (Ubuntu, OpenShift 4)
 - Removing stopgaps that broke features, once patches are confirmed (the options filter, for example, on networks that use CIPSO labels on purpose)
 
 **Week 2-4: Hardening**
@@ -1527,9 +1557,9 @@ The scenarios stay qualitative. No source for this bug gives cost figures, so no
 | Option | Effort | What's left exposed | Verdict |
 | --- | --- | --- | --- |
 | Patch and reboot now | A kernel package update and a reboot per host (one node at a time behind a load balancer) | Nothing known for this CVE once the host runs the fixed kernel. The IPv6 CALIPSO follow-up has no maintainer patch yet | Do this |
-| IP options filter plus the MPTCP switch, patch later | A few firewall commands and a sysctl per host, and a restart of each listening service for the MPTCP switch | Whatever the filter doesn't cover. A Go team member says on Go issue 82717 that dropping IPv4 TCP packets with IP options "may suffice", which is unconfirmed. The MPTCP switch closes only the demonstrated path. Red Hat says no mitigation meets its criteria | A bridge for days, not weeks |
-| Put exposed services behind a TCP-terminating proxy | An architecture change per service, plus an origin firewall locked to the proxy's IP ranges | The proxy's own kernel, which is its operator's problem, and anything still reachable directly. L4 passthrough load balancers forward packets, so they don't count. Our reasoning, not a vendor statement | A good layer, not a fix |
-| Live patch | Only Oracle Ksplice is confirmed (UEK R6, R7 and R8, 19 October 2026). None found for Ubuntu Livepatch, RHEL kpatch, SUSE live patching or Amazon Linux | Nothing known for this CVE once the update is applied | Use it where you run Oracle UEK |
+| IP options filter plus the MPTCP switch, patch later | A few firewall commands and a sysctl per host, and a restart of each listening service for the MPTCP switch | Whatever the filter doesn't cover, such as traffic between pods or containers on the same host. Red Hat recommends the filter but says it can't fully prevent exploitation. The MPTCP switch closes only the demonstrated path | A bridge for days, not weeks |
+| Put exposed services behind a TCP-terminating proxy | An architecture change per service, plus an origin firewall locked to the proxy's IP ranges | The proxy's own kernel, which is its operator's problem, and anything still reachable directly. L4 passthrough load balancers forward packets, so they don't count. AWS says customers behind its TCP-terminating services don't receive untrusted TCP connections directly | A good layer, not a fix |
+| Live patch | Oracle Ksplice (UEK R6, R7 and R8, 19 October 2026), SUSE live patching (SLE 12 SP5 and 15 SP4 to SP7) and TuxCare KernelCare (Debian 13 at least). None found for Ubuntu Livepatch, RHEL kpatch or Amazon Linux | Nothing known for this CVE once the update is applied | Use it where your vendor has one |
 | Move off an end-of-life distribution or kernel | A migration project | Nothing once moved. Until then everything, because no upstream fix exists for 5.4 and older | Required. Internet-facing hosts first |
 | Appliance or embedded device waiting on its vendor | A written query to the vendor, plus firewall rules and network placement | Everything until the vendor ships a fix | Compensating controls now, the vendor's fix when it ships |
 | Wait | None today | Everything | Not acceptable on an internet-facing host. The fix and its explanation have been public since 29 September 2026, the reporters describe remote root command execution, and fixed kernels exist upstream and in several distributions |
@@ -1632,8 +1662,8 @@ If you find signs of compromise, these timelines may start running. A clean upgr
 | Fixed kernel installed, host not rebooted | Reboot now (rolling, one node at a time) | HIGH | Today |
 | Unpatched, listeners reachable only from trusted networks | Patch and reboot | HIGH | 48 hours |
 | Unpatched, internet facing, accepts inbound IPv4 TCP directly (above all with MPTCP listeners or Go services) | Patch and reboot, or apply the IP options filter and the MPTCP switch until you can | CRITICAL | Today |
-| Unpatched, internet facing only through a TCP-terminating proxy, origin locked to the proxy's IP ranges | Patch and reboot in the normal window, and confirm the origin lock (our reasoning, not a vendor statement) | HIGH | 48 hours |
-| Platform with no released fix yet (at the data cut-off, among others: Ubuntu, RHEL 8, 9 and 10 and their rebuilds, the latest AKS node image and Bottlerocket release) | Apply the stopgaps, watch the vendor, patch the day the fix ships | CRITICAL if internet facing, otherwise HIGH | Today, or 48 hours |
+| Unpatched, internet facing only through a TCP-terminating proxy, origin locked to the proxy's IP ranges | Patch and reboot in the normal window, and confirm the origin lock (AWS says customers behind its TCP-terminating services don't receive untrusted TCP connections directly) | HIGH | 48 hours |
+| Platform with no released fix yet (on 4 November: Ubuntu, OpenShift 4, CentOS Stream, and AKS until its node image kernel is confirmed) | Apply the stopgaps, watch the vendor, patch the day the fix ships | CRITICAL if internet facing, otherwise HIGH | Today, or 48 hours |
 | Kernel line with no upstream fix (5.4 and older, or an end-of-life line such as 7.1, 7.0 or 6.19) and no vendor backport | Ask the vendor for a backport, or move to a supported kernel. Stopgaps and isolation meanwhile | CRITICAL if internet facing, otherwise HIGH | Today, or 48 hours |
 | Appliance or embedded device on Linux 4.4 or later, waiting on its vendor | Take its listeners off untrusted networks, filter in front of it, ask the vendor in writing | CRITICAL if its listener is internet facing, otherwise HIGH | Today, or 48 hours |
 | Go service (go 1.24 or later) on a host you can't patch yet | Turn MPTCP off for the host or the program (fragile), filter IP options, patch the kernel | CRITICAL if internet facing, otherwise HIGH | Today, or 48 hours |
@@ -1668,7 +1698,7 @@ Step 1: Exposure path (any one is enough)
 Step 2: Kernel
 - Running kernel below the fixed version for its line                HIGH, patchable today
 - Fixed kernel installed, host not rebooted                          HIGH, reboot today
-- Vendor fix not released yet (Ubuntu, RHEL family at cut-off)       HIGH until it ships
+- Vendor fix not released yet (Ubuntu on 4 November)                 HIGH until it ships
 - No upstream fix (5.4 and older, end-of-life lines), no backport    HIGH, wait on the vendor
 - Fixed kernel running                                               LOWER
 
@@ -1731,15 +1761,15 @@ Two other situations count as exposure when you have them: request migration (`n
 
 **Q: Is anyone exploiting this?**
 
-**A:** Not that anyone has reported. At cut-off Rapid7 lists exploited_in_wild as false, Wiz and Feedly show no evidence, CISA hasn't added the CVE to its exploited list (catalog 2026.10.29) and the EPSS score is 0.00388 (32.8th percentile, 29 October 2026). The reporters' claims are a different matter. The reporters' write-up of 27 October 2026 describes remote root command execution against servers with an MPTCP listener. Their proof of concept took 48 minutes to leak a kernel pointer and 5 more to run a command. It names no tested kernel versions or distributions, and no exploit code was published. Eleven GitHub repositories named after the CVE appeared on 29 and 30 October 2026, and none is verified. That picture can change quickly, so check again before you rely on it. The sources are set out under ATTACK TIMELINE.
+**A:** Not that anyone has reported. On 4 November Rapid7 lists exploited_in_wild as false, Wiz and Feedly show no evidence, Previdian says "No Exploitation Yet", AWS has "no evidence" of use, Fortinet lists it as not known exploited, CISA hasn't added the CVE to its exploited list (catalog 2026.11.03), and the EPSS score is 0.0076 (55.3rd percentile, 3 November). The reporters' claims are a different matter. The reporters' write-up of 27 October 2026 describes remote root command execution against servers with an MPTCP listener. Their proof of concept took 48 minutes to leak a kernel pointer and 5 more to run a command. It names no tested kernel versions or distributions, and no exploit code had been published by 3 November. 71 GitHub repositories mentioned the CVE on 4 November, and none is verified. That picture can change quickly, so check again before you rely on it. The sources are set out under ATTACK TIMELINE.
 
-*Sources: the reporters' write-up of 27 October 2026, Rapid7, Wiz, Feedly, CISA KEV catalog, FIRST EPSS API, GitHub repository search for the CVE ID*
+*Sources: the reporters' write-up of 27 October 2026, Rapid7, Wiz, Feedly, Previdian, AWS bulletin 2026-160-AWS, Fortinet PSIRT, CISA KEV catalog, FIRST EPSS API, The Hacker News (3 November 2026), GitHub repository search for the CVE ID*
 
 ---
 
 **Q: The ratings disagree, Critical 9.8 or Important 8.1. Which is it?**
 
-**A:** Both are on the record, and each comes from a different scorer. The kernel.org CNA scores CVSS 3.1 9.8 (Critical). Red Hat, SUSE, Amazon Linux and Oracle Linux rate it Important at 8.1. Ubuntu says priority High, and Debian had assigned no urgency at cut-off. NVD showed no score of its own (status "Received"). Our position: treat it as critical for internet-facing Linux servers that accept inbound IPv4 TCP connections directly, above all those with MPTCP listeners, and as high everywhere else. Patch first, argue about the label later. RISK DASHBOARD lists every rating, and the technical questions below explain the gap.
+**A:** Both are on the record, and each comes from a different scorer. The kernel.org CNA scores CVSS 3.1 9.8 (Critical), and Red Hat moved to the same 9.8 by 4 November, after 8.1 on 30 October. SUSE, Amazon Linux and Oracle Linux still rate it Important at 8.1. Ubuntu raised its priority to critical on 3 November, and Debian has assigned no urgency. NVD shows no score of its own (status "Received"). Our position: treat it as critical for internet-facing Linux servers that accept inbound IPv4 TCP connections directly, above all those with MPTCP listeners, and as high everywhere else. Patch first, argue about the label later. RISK DASHBOARD lists every rating, and the technical questions below explain the gap.
 
 *Sources: kernel.org CVE record, Red Hat, SUSE, Amazon Linux and Oracle Linux pages, Ubuntu and Debian trackers, NVD*
 
@@ -1747,7 +1777,7 @@ Two other situations count as exposure when you have them: request migration (`n
 
 **Q: Why did we hear about this so late?**
 
-**A:** The fix and its technical explanation were public on the kernel networking mailing list from 29 September 2026, and the commit message explains the use-after-free. The CVE was published 16 days later, on 15 October, and the reporters' write-up came 28 days after the fix, on 27 October. Vendor notices came in between: Debian and Oracle on 16 October, Amazon Linux and SUSE on 24 October, and at cut-off Ubuntu and Red Hat had released no fix. A tool that waits for a CVE record had nothing before 15 October, and one that waits for a vendor advisory had nothing before 16 October. Tools can still find old kernels, flag hosts with exposed listeners, count inbound TCP packets with IP options and catch what an attacker does after getting in. The upgrade and the reboot are the only real fix. The technical questions below cover why a scanner may stay silent.
+**A:** The fix and its technical explanation were public on the kernel networking mailing list from 29 September 2026, and the commit message explains the use-after-free. The CVE was published 16 days later, on 15 October, and the reporters' write-up came 28 days after the fix, on 27 October. Vendor notices came in between: Debian and Oracle on 16 October, Amazon Linux and SUSE on 24 October, Red Hat on 1 November, and Ubuntu's fix was still in testing on 4 November. A tool that waits for a CVE record had nothing before 15 October, and one that waits for a vendor advisory had nothing before 16 October. Tools can still find old kernels, flag hosts with exposed listeners, count inbound TCP packets with IP options and catch what an attacker does after getting in. The upgrade and the reboot are the only real fix. The technical questions below cover why a scanner may stay silent.
 
 *Sources: netdev mailing list posting of the fix, CVE record, Debian, Oracle Linux, Amazon Linux and SUSE advisories, Ubuntu and Red Hat trackers*
 
@@ -1755,9 +1785,9 @@ Two other situations count as exposure when you have them: request migration (`n
 
 **Q: We run on a cloud provider or managed Kubernetes. Do we need to do anything?**
 
-**A:** Get a written answer from your provider, and ask which kernel your nodes run right now. A new node image helps only once your nodes run it. At cut-off no AWS, Google Cloud or Azure security bulletin named the CVE. EKS AL2023 AMI v20261026 (27 October) ships fixed 6.12 and 6.18 kernels, but its 6.1.189 variant is not fixed. The AKS node image 202610.16.1 (27 October) runs kernels below the fix for both Azure Linux and Ubuntu. On GKE, Container-Optimized OS m121, m125 and m129 are at the fix (inferred), and m113, m117 and m133 are below it (inferred). Bottlerocket's latest release, v1.68.0 (27 October), still uses kernel-kit 9.6.0, so it is pending, while kernel-kit 9.6.1 has the fixed builds. Azure Linux 3.0 has the fix in kernel 6.6.159.1-1.azl3, and Microsoft's update guide lists the CVE for Azure Linux with customer action required. The status per platform is under RISK DASHBOARD.
+**A:** Get a written answer from your provider, and ask which kernel your nodes run right now. A new node image helps only once your nodes run it. AWS bulletin 2026-160-AWS (31 October) says the EKS AL2023 AMI v20261031 and the ECS-optimized AMI 20261031 are fixed, and Bottlerocket v1.68.1 (2 November) carries the fix. AKS rolled out node image 202610.23.0, but we couldn't confirm its kernels, and the earlier 202610.16.1 was below the fix. On GKE, the Container-Optimized OS release notes for m121, m125, m129 and m133 name the fix, and no Google Cloud or GKE bulletin names the CVE. Azure Linux 3.0 has the fix in kernel 6.6.159.1-1.azl3, and Microsoft's update guide lists the CVE for Azure Linux with customer action required. The status per platform is under RISK DASHBOARD.
 
-*Sources: Microsoft update guide, EKS AMI release notes, AKS release notes, Container-Optimized OS release notes, Bottlerocket release notes, GKE security bulletins*
+*Sources: AWS bulletin 2026-160-AWS, Microsoft update guide, EKS AMI release notes, AKS release notes and release tracker, Container-Optimized OS and GKE release notes, Bottlerocket release notes, GKE security bulletins (4 November 2026)*
 
 ---
 
@@ -1812,17 +1842,17 @@ Two other situations count as exposure when you have them: request migration (`n
 
 **Q: We run RHEL, and Red Hat's documentation says MPTCP is off by default. Are we safe?**
 
-**A:** No. If Red Hat's documentation matches your build, the demonstrated MPTCP path is closed, but we didn't test a stock install, and plain TCP stays exposed. The RHEL 8 and 9 documentation says: "By default the MPTCP support is disabled in RHEL." The RHEL 10 guide also tells you to enable it, with no explicit default sentence. MPTCP is built into the Fedora and CentOS Stream configurations, and upstream kernels default `net.mptcp.enabled` to 1, so check what your hosts do instead of trusting the default: run `sysctl net.mptcp.enabled`, and as root `ss -Mlnp`. The Go security team says hosts with no MPTCP listener may be vulnerable to similar attacks, and nobody has publicly shown code execution without one. RHEL 8 and 9 (kernel and kernel-rt), RHEL 10 (kernel) and OpenShift 4 (RHCOS 8 and 9) are affected, with no fix and no RHSA at cut-off. Red Hat states that no mitigation meets its criteria, Bugzilla 2553390 is NEW and no kpatch exists. AlmaLinux and Rocky Linux follow RHEL. RHEL 6 and 7 are not affected.
+**A:** No. If Red Hat's documentation matches your build, the demonstrated MPTCP path is closed, but we didn't test a stock install, and plain TCP stays exposed. The RHEL 8 and 9 documentation says: "By default the MPTCP support is disabled in RHEL." The RHEL 10 guide also tells you to enable it, with no explicit default sentence. MPTCP is built into the Fedora and CentOS Stream configurations, and upstream kernels default `net.mptcp.enabled` to 1, so check what your hosts do instead of trusting the default: run `sysctl net.mptcp.enabled`, and as root `ss -Mlnp`. The Go security team says hosts with no MPTCP listener may be vulnerable to similar attacks, and nobody has publicly shown code execution without one. Red Hat's own bulletin RHSB-2026-016 settles it: RHEL disables MPTCP by default, but having MPTCP enabled is not a precondition, so RHEL is affected anyway. Install the fixed kernel from 1 November (RHSA-2026:93414 for RHEL 8, 93412 for RHEL 9, 93413 for RHEL 10) and reboot. Rocky Linux, AlmaLinux and Oracle's Red Hat compatible kernel have the fix too. OpenShift 4 (RHCOS 8 and 9) was still listed as affected on 4 November. RHEL 6 and 7 are not affected.
 
-*Sources: Red Hat RHEL 8, 9 and 10 documentation, Red Hat CVE page, Red Hat Bugzilla, kernel MPTCP sysctl documentation, Go security team announcement*
+*Sources: Red Hat RHEL 8, 9 and 10 documentation, Red Hat CVE page, errata and bulletin RHSB-2026-016, Rocky Linux, AlmaLinux and Oracle Linux errata, kernel MPTCP sysctl documentation, Go security team announcement*
 
 ---
 
 **Q: Our services sit behind Cloudflare or another proxy. Are we covered?**
 
-**A:** Partly, and only if the origin can't be reached directly. This is our reasoning, not a vendor statement. A proxy that terminates the TCP connection (the Cloudflare proxy, AWS ALB, CloudFront or any reverse proxy) opens its own connection to your origin, so the attacker's IPv4 options never reach your kernel. That holds only while the origin is not reachable directly, so lock the origin firewall to the proxy's IP ranges. Services published only through outbound tunnels (Cloudflare Tunnel, for example) have no internet-facing listener. Some limits apply. L4 passthrough load balancers (AWS NLB, Google Cloud passthrough network load balancers) forward packets, and no documentation says they strip IP options, so treat services behind them as exposed. Cloudflare WAF rules work on HTTP and cannot see IP options. The proxy's own kernel is its operator's problem, not yours. Magic Transit customers can drop packets with options at Cloudflare's edge, because Network Firewall (Magic Firewall) has the fields `ip.hdr_len` and `ip.opt.type`. No AWS, Google Cloud or Azure documentation says their virtual networks drop or strip IPv4 options, and security groups and network ACLs can't match IP options, so treat that as unknown.
+**A:** Partly, and only if the origin can't be reached directly. A proxy that terminates the TCP connection (the Cloudflare proxy, AWS ALB, CloudFront or any reverse proxy) opens its own connection to your origin, so the attacker's IPv4 options never reach your kernel. AWS's bulletin says customers behind ALB, CloudFront, API Gateway and NLB TLS listeners don't receive TCP connections from untrusted sources directly when they follow its best practices, and that Global Accelerator drops every IPv4 packet with IP options. That holds only while the origin is not reachable directly, so lock the origin firewall to the proxy's IP ranges. Services published only through outbound tunnels (Cloudflare Tunnel, for example) have no internet-facing listener. Some limits apply. L4 passthrough load balancers (AWS NLB with TCP listeners, Google Cloud passthrough network load balancers) forward packets, and no documentation says they strip IP options, so treat services behind them as exposed. Cloudflare WAF rules work on HTTP and cannot see IP options. The proxy's own kernel is its operator's problem, not yours. Magic Transit customers can drop packets with options at Cloudflare's edge, because Network Firewall (Magic Firewall) has the fields `ip.hdr_len` and `ip.opt.type`. No AWS, Google Cloud or Azure documentation says their virtual networks drop or strip IPv4 options, and security groups and network ACLs can't match IP options, so treat that as unknown.
 
-*Sources: Cloudflare Network Firewall field reference, AWS, Google Cloud and Azure networking documentation (none says IP options are stripped), our reasoning from how TCP termination works*
+*Sources: Cloudflare Network Firewall field reference, AWS bulletin 2026-160-AWS, AWS, Google Cloud and Azure networking documentation (none says their virtual networks strip IP options), our reasoning from how TCP termination works*
 
 ---
 
@@ -1867,15 +1897,15 @@ needs-restarting -r
 zypper needs-rebooting
 ```
 
-Containers run on the host's kernel, so reboot the node. Only Oracle Ksplice is confirmed as a live patch (updates for UEK R6, R7 and R8 on 19 October 2026). None was found from Ubuntu Livepatch, RHEL kpatch, SUSE live patching or Amazon Linux. Before you reboot a host you suspect, capture memory and volatile state: a kernel exploit can leave no file on disk, and a reboot destroys memory evidence.
+Containers run on the host's kernel, so reboot the node. Live patches exist from three vendors: Oracle Ksplice (UEK R6, R7 and R8, 19 October 2026), SUSE live patching (SLE 12 SP5 and 15 SP4 to SP7) and TuxCare KernelCare (Debian 13 at least). None was found from Ubuntu Livepatch, RHEL kpatch or Amazon Linux. Before you reboot a host you suspect, capture memory and volatile state: a kernel exploit can leave no file on disk, and a reboot destroys memory evidence.
 
-*Sources: Oracle Linux advisories, Ubuntu, Red Hat, SUSE and Amazon Linux pages (no live patch listed)*
+*Sources: Oracle Linux advisories, SUSE CVE page and live patch advisories, TuxCare blog, Ubuntu, Red Hat and Amazon Linux pages (no live patch listed)*
 
 ---
 
-**Q: We run Ubuntu or the RHEL family and there is no fixed kernel yet. What now?**
+**Q: We run Ubuntu and there is no fixed kernel yet. What now?**
 
-**A:** At cut-off Ubuntu had priority High, no Ubuntu Security Notice and no Livepatch fix. Its status was "pending" (fix prepared, not released) on 22.04 jammy, 24.04 noble, 26.04 resolute and 26.10, and on the aws, azure, gcp, oracle and gke flavours for jammy and noble. 20.04, 18.04 and 16.04 were "needed" (affected, no fix yet), and 14.04 is not affected. Red Hat had no fix for RHEL 8, 9 and 10, and AlmaLinux and Rocky Linux follow RHEL. Oracle's UEK is fixed, but its Red Hat compatible kernel (RHCK) is pending. In the meantime:
+**A:** On 4 November Ubuntu had priority critical, no Ubuntu Security Notice and no Livepatch fix. Canonical said on 2 November that the fixes for the generic kernels are in the -proposed pocket for testing, for 22.04 jammy, 24.04 noble, 26.04 resolute and 26.10, and that updates are "the only appropriate mitigation". The aws, azure, gcp, gke and oracle flavours on jammy and noble are still pending. 20.04, 18.04 and 16.04 are "needed" (affected, no fix yet), and 14.04 is not affected. If you run the RHEL family, you're past this question: Red Hat shipped on 1 November, and Rocky Linux, AlmaLinux and Oracle's Red Hat compatible kernel followed. Until Ubuntu's update is released:
 
 1. Find the hosts that accept inbound IPv4 TCP directly, and apply the IP options filter there (count first, then enforce).
 2. Where nobody needs MPTCP, turn it off and restart the listening services.
@@ -1885,13 +1915,13 @@ Containers run on the host's kernel, so reboot the node. Only Oracle Ksplice is 
 
 Per-vendor status is under RISK DASHBOARD.
 
-*Sources: Ubuntu CVE tracker, Red Hat CVE page, Red Hat Bugzilla, Oracle Linux advisories*
+*Sources: Ubuntu CVE tracker and Canonical blog (2 November 2026), Red Hat CVE page and errata, Rocky Linux and AlmaLinux errata, Oracle Linux advisories*
 
 ---
 
 **Q: Does the IP options filter fully protect us?**
 
-**A:** No. A Go team member says on Go issue 82717 that dropping IPv4 TCP packets that carry IP options "may suffice", and that is unconfirmed. Treat the filter as a bridge to the patch, and know its limits:
+**A:** No. A Go team member says on Go issue 82717 that dropping IPv4 TCP packets that carry IP options "may suffice", and Red Hat now recommends the filter, but Red Hat also says it "cannot fully prevent" exploitation. Treat the filter as a bridge to the patch, and know its limits:
 
 - It must cover all TCP packets, not only SYNs. Under SYN flood the kernel uses syncookies, and `net/ipv4/syncookies.c` re-reads the options from the final ACK.
 - It does nothing for traffic that reaches the host past the netfilter hooks (CNI plugins with eBPF datapaths can do that).
@@ -1935,7 +1965,7 @@ To switch it off for one program:
 Where it stops:
 
 - The GODEBUG environment variable overrides go.mod and `//go:debug` settings, and an explicit `SetMultipathTCP(true)` in code overrides GODEBUG, so none of this stops a program that asks for MPTCP itself.
-- It closes only the demonstrated path. The Go security team says the bug is not specific to MPTCP, calls the per-program approach "a fragile mitigation", says the best fix is a patched kernel and says it is premature to change Go's defaults. Go issue 82717 was still open on 30 October 2026.
+- It closes only the demonstrated path. The Go security team says the bug is not specific to MPTCP, calls the per-program approach "a fragile mitigation", says the best fix is a patched kernel and says it is premature to change Go's defaults. Go issue 82717 was still undecided on 4 November 2026.
 - If the kernel refuses MPTCP sockets (for example `net.mptcp.enabled=0` gives ENOPROTOOPT), Go silently falls back to plain TCP, so the host-wide sysctl needs no change in the programs.
 
 To see what a binary will do, run `go version -m /path/to/binary`. It needs a Go toolchain, and a directory is scanned recursively. The "build DefaultGODEBUG=..." line appears only when it is not empty, and a binary whose module declares go 1.24 or later and shows no multipathtcp=0 there opens MPTCP listeners by default.
@@ -1984,7 +2014,7 @@ DETECTION & FORENSICS has the log patterns and the network rules.
 
 **Q: Are the public GitHub repositories safe to run for testing?**
 
-**A:** Don't. Eleven GitHub repositories named after the CVE were created on 29 and 30 October 2026. None is verified. Most describe themselves as checkers, mitigations, audits or a livepatch, and one claims a race trigger. Running unknown code is a common way to get compromised, above all as root on a production host, and a "checker" is code you would run with full privileges. We name none of them here. Use the read-only commands in this document, your vendor's advisories and the version checks instead. If you must test, use an isolated lab VM with no route to production.
+**A:** Don't. 71 GitHub repositories mentioned the CVE on 4 November, up from 11 on 30 October. None is verified. Their descriptions include checkers, mitigations, audits, a livepatch, a trigger that says it does no code execution, and a "lab root-shell kit" that says it is not a stock remote exploit. Running unknown code is a common way to get compromised, above all as root on a production host, and a "checker" is code you would run with full privileges. We name none of them here. Use the read-only commands in this document, your vendor's advisories and the version checks instead. If you must test, use an isolated lab VM with no route to production.
 
 *Sources: GitHub repository search for the CVE ID (names withheld)*
 
@@ -2103,35 +2133,51 @@ One item is open. The CVE text says `tcp_v6_reqsk_destructor()` has the same mig
 ### Official security advisories
 
 - **CVE record:** https://www.cve.org/CVERecord?id=CVE-2026-98432 (published 15 October 2026, 12:08 UTC, CNA: kernel.org; CVSS 3.1 9.8 added 24 October 2026, 14:08 UTC)
-- **NVD:** https://nvd.nist.gov/vuln/detail/CVE-2026-98432 (status "Received" at cut-off, no NVD score of its own, shows the CNA 9.8)
+- **NVD:** https://nvd.nist.gov/vuln/detail/CVE-2026-98432 (status still "Received" on 4 November, no NVD score of its own, shows the CNA 9.8)
 - **Mainline fix:** https://git.kernel.org/stable/c/e3f33b0a1d89d738e2b913dab519226eaf76e15b
 - **Fix on the netdev list (v2, 1 October 2026):** https://lore.kernel.org/r/20261001221253.2964024-1-edumazet@kernel.org
-- **kernel.org releases:** https://www.kernel.org/category/releases.html (fixed in 7.3, 7.2.10, 6.18.56, 6.12.113, 6.6.159, 6.1.190, 5.15.223 and 5.10.272; maintained on 30 October 2026: mainline 7.3, stable 7.2.13, longterm 6.18.59, 6.12.114, 6.6.160, 6.1.190, 5.15.223 and 5.10.272)
+- **IPv6 sibling fix (posted 3 November 2026, under review on 4 November):** https://marc.info/?l=linux-netdev&m=179369697364876&w=2
+- **kernel.org releases:** https://www.kernel.org/category/releases.html (fixed in 7.3, 7.2.10, 6.18.56, 6.12.113, 6.6.159, 6.1.190, 5.15.223 and 5.10.272; newest on 4 November 2026: mainline 7.4-rc1, stable 7.3.1, longterm 6.18.60, 6.12.115, 6.6.161, 6.1.191, 5.15.224 and 5.10.273; 7.2 ended with 7.2.15 on 1 November)
 - **Kernel documentation:** MPTCP sysctls https://docs.kernel.org/networking/mptcp-sysctl.html and IP sysctls https://docs.kernel.org/networking/ip-sysctl.html
 - **GitHub advisory:** https://github.com/advisories/GHSA-qp6h-4hvh-qqqc (published 15 October 2026, 18:32 UTC, unreviewed, rated critical 9.8)
 
 ### Government and CERT advisories
 
-- **CISA:** the CVE is not in the KEV catalog (catalog 2026.10.29): https://www.cisa.gov/known-exploited-vulnerabilities-catalog
-- **No advisory found naming the CVE at cut-off:** CERT-Bund (WID feed), CERT-FR, NCSC UK, NCSC NL, CCCS, JPCERT and CERT-In lists. Some feeds covered only the last few days, so this is weak evidence
-- **Cloud providers:** no AWS, Google Cloud or Azure security bulletin named the CVE as of 29 to 30 October 2026. Microsoft's update guide lists it for Azure Linux with customer action required (link under Vendor and distro advisories)
-- **oss-security:** the Go announcement was forwarded on 30 October 2026 (00:21 UTC): https://www.openwall.com/lists/oss-security/2026/10/30/1. CISA's ADP container added the oss-security link to the CVE record (02:08 UTC)
+- **CISA:** the CVE is not in the KEV catalog (catalog 2026.11.03): https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+- **NCSC-NL:** NCSC-2026-0461 (30 October 2026): https://advisories.ncsc.nl/csaf/v2/2026/ncsc-2026-0461.json
+- **Canadian Centre for Cyber Security:** AV26-1108 (30 October 2026): https://cyber.gc.ca/en/alerts-advisories/linux-security-advisory-av26-1108
+- **CERT-FR:** CERTFR-2026-AVI-1432 (30 October 2026): https://www.cert.cyber.gouv.fr/avis/CERTFR-2026-AVI-1432/
+- **HKCERT:** bulletins for the Debian, Red Hat and SUSE kernels (3 November 2026), for example https://www.hkcert.org/security-bulletin/redhat-linux-kernel-multiple-vulnerabilities_20261103
+- **No advisory found by 4 November:** the CISA and NCSC UK feeds. BSI, ACSC, CERT-In, JPCERT/CC and CERT-EU couldn't be checked properly
+- **Cloud providers:** AWS bulletin 2026-160-AWS (31 October 2026): https://aws.amazon.com/security/security-bulletins/2026-160-aws/. No Google Cloud or GKE bulletin names the CVE. Microsoft's update guide lists it for Azure Linux with customer action required (link under Vendor and distro advisories)
+- **oss-security:** the Go announcement was forwarded on 30 October 2026 (00:21 UTC): https://www.openwall.com/lists/oss-security/2026/10/30/1. CISA's ADP container added the oss-security link to the CVE record (02:08 UTC). Later posts cover `net.mptcp.enabled=0` (30 October), `init_on_free=1` as a stopgap (31 October) and a CIQ kernel engineer's reply that it doesn't help (3 November): https://www.openwall.com/lists/oss-security/2026/10/30/6, https://www.openwall.com/lists/oss-security/2026/10/31/5 and https://www.openwall.com/lists/oss-security/2026/11/03/1
 
 ### Research and threat intelligence
 
 - **The reporters' write-up (27 October 2026, updated 28 October 2026):** the write-up published by the team that reported the bug, not linked here. It describes remote root command execution against servers with an MPTCP listener, and it names no tested kernel versions or distributions
 - **Go security team (golang-announce, 29 October 2026, 23:34 UTC):** https://groups.google.com/g/golang-announce/c/PCoQcdxoScw/m/aD-MgXEvAAAJ
-- **Go issue 82717, "proposal: net: Disable MPTCP by default" (opened 29 October 2026, still open on 30 October 2026):** https://go.dev/issue/82717
+- **Go issue 82717, "proposal: net: Disable MPTCP by default" (opened 29 October 2026, still undecided on 4 November 2026):** https://go.dev/issue/82717
+- **Red Hat bulletin RHSB-2026-016 (last updated 4 November 2026):** https://access.redhat.com/security/vulnerabilities/RHSB-2026-016
+- **Canonical (2 November 2026):** https://ubuntu.com/blog/fixes-available-in-proposed-pocket-for-cve-2026-98432
+- **AlmaLinux (30 October 2026, updated 2 November):** https://almalinux.org/blog/2026-10-30-cve-2026-98432/
+- **TuxCare:** https://tuxcare.com/blog/cve-2026-98432-linux-tcp-remote-root/
+- **Previdian exploitation tracker:** https://previdian.com/CVE-2026-98432
 - **Go GODEBUG documentation:** https://go.dev/doc/godebug
 - **Go 1.24 release notes:** https://go.dev/doc/go1.24
 - **The Hacker News (29 October 2026):** "Linux Kernel TCP Flaw With 9.8 CVSS Score Affects Ubuntu, Red Hat and Other Distributions", https://thehackernews.com/2026/10/linux-kernel-tcp-flaw-with-98-cvss.html
+- **The Hacker News (3 November 2026):** "Red Hat Patches 9.8-Rated Linux TCP RCE Flaw While Ubuntu Releases Fixes for Testing", https://thehackernews.com/2026/11/red-hat-patches-98-rated-linux-tcp-rce.html
+- **BleepingComputer (30 October 2026):** https://www.bleepingcomputer.com/news/security/critical-linux-kernel-flaw-allows-remote-root-attacks-on-mptcp-servers/
 - **MPTCP application list (secondary):** https://www.mptcp.dev/apps.html
 - **Exposure counts:** no public counts exist, and this document gives none
 
 ### Detection and scanning tools
 
 - **Checkers:** this analysis has no checker script. Use the read-only commands under AM I AFFECTED? SELF-ASSESSMENT and DETECTION & FORENSICS
-- **Exploit tracking:** Rapid7 lists exploited_in_wild as false (https://www.rapid7.com/db/vulnerabilities/cve-2026-98432/), EPSS is 0.00388 at the 32.8th percentile on 29 October 2026 (https://api.first.org/data/v1/epss?cve=CVE-2026-98432) and CISA KEV does not list the CVE
+- **Exploit tracking:** Rapid7 lists exploited_in_wild as false (https://www.rapid7.com/db/vulnerabilities/cve-2026-98432/), EPSS is 0.0076 at the 55.3rd percentile on 3 November 2026 (https://api.first.org/data/v1/epss?cve=CVE-2026-98432), Previdian says "No Exploitation Yet", and CISA KEV does not list the CVE (catalog 2026.11.03)
+- **Fortinet:** PSIRT FG-IR-26-188 (2 November 2026): https://fortiguard.fortinet.com/psirt/FG-IR-26-188. FortiGuard lists IPS signature Linux.Kernel.tcp_v4_syn_recv_sock.Use.After.Free from 3 November
+- **Tenable:** 73 plugins on 4 November 2026: https://www.tenable.com/cve/CVE-2026-98432/plugins
+- **No rule or template yet:** no Emerging Threats Open or Snort community rule names the CVE, and nuclei has no template (checked on 4 November 2026)
+- **Vendor filter rules:** Red Hat bulletin RHSB-2026-016 (nftables), AlmaLinux's blog post (nftables) and AWS bulletin 2026-160-AWS (iptables u32 and AWS Network Firewall). All three are stopgaps
 - **OSV:** https://osv.dev/vulnerability/CVE-2026-98432
 - **Network rules:** Suricata and Snort 3 both have an `ipopts` keyword (Snort 3: https://docs.snort.org/rules/options/non_payload/ipopts). Suricata accepts rr, eol, nop, ts, sec, esec, lsrr, ssrr, satid, qs, rtralt, cipso or any, one per rule. Example rules are under DETECTION & FORENSICS
 - **nftables manual:** https://www.netfilter.org/projects/nftables/manpage.html
@@ -2142,25 +2188,27 @@ One item is open. The CVE text says `tcp_v6_reqsk_destructor()` has the same mig
 
 ### Vendor and distro advisories
 
-- **Debian:** https://security-tracker.debian.org/tracker/CVE-2026-98432 (fixed in bookworm linux 6.1.190-1 (DLA-4841-1) and linux-6.12 6.12.113-1~deb12u1 (DLA-4850-1), trixie 6.12.113-1 (DSA-6568-1), forky 7.2.12-1 and sid 7.2.13-1; stretch and buster unfixed and end of life; urgency not yet assigned)
-- **Debian ELTS (Freexian):** https://deb.freexian.com/extended-lts/tracker/CVE-2026-98432 (bullseye: 5.10.272-1, ELA-1846-1, and linux-6.1 6.1.190-1~deb11u1, ELA-1850-1)
-- **Ubuntu:** https://ubuntu.com/security/CVE-2026-98432 (priority High, no Ubuntu Security Notice yet; fix pending on 22.04, 24.04, 26.04 and 26.10; 20.04, 18.04 and 16.04 needed; 14.04 not affected; no Livepatch fix listed)
-- **Red Hat:** https://access.redhat.com/security/cve/CVE-2026-98432 (RHEL 8, 9, 10 and OpenShift 4 affected, no fix or RHSA; RHEL 6 and 7 not affected; no mitigation meets Red Hat's criteria)
-- **Red Hat Bugzilla:** https://bugzilla.redhat.com/show_bug.cgi?id=2553390 (status NEW, no kpatch)
+- **Debian:** https://security-tracker.debian.org/tracker/CVE-2026-98432 (fixed in bookworm linux 6.1.190-1 (DLA-4841-1) and linux-6.12 6.12.113-1~deb12u1 (DLA-4850-1), trixie 6.12.113-1 (DSA-6568-1), forky 7.2.12-1 and sid 7.2.13-1; stretch and buster end of life; urgency not yet assigned)
+- **Debian ELTS (Freexian):** https://deb.freexian.com/extended-lts/tracker/CVE-2026-98432 (bullseye: 5.10.272-1, ELA-1846-1, and linux-6.1 6.1.190-1~deb11u1, ELA-1850-1; the tracker also lists linux-6.1 as fixed for stretch and buster, not checked further)
+- **Ubuntu:** https://ubuntu.com/security/CVE-2026-98432 (priority critical since 3 November, no Ubuntu Security Notice yet; fixes in -proposed for 22.04, 24.04, 26.04 and 26.10; 20.04, 18.04 and 16.04 needed; 14.04 not affected; no Livepatch fix listed)
+- **Red Hat:** https://access.redhat.com/security/cve/CVE-2026-98432 (Critical 9.8; RHEL 8, 9 and 10 fixed on 1 November by RHSA-2026:93414, 93412 and 93413, with EUS, E4S, AUS, TUS and SAP errata after them; OpenShift 4 still affected; RHEL 6 and 7 not affected)
+- **Red Hat Bugzilla:** https://bugzilla.redhat.com/show_bug.cgi?id=2553390 (status still NEW, no kpatch)
+- **Rocky Linux:** https://errata.rockylinux.org/ (RLSA-2026:93414, 93412 and 93413, 3 November 2026)
+- **AlmaLinux:** https://errata.almalinux.org/ (ALSA-2026:93414 and 93415 for AlmaLinux 8; fixed kernels for 9 and 10 in the repositories since 2 November)
 - **Red Hat MPTCP guide (RHEL 9):** https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/configuring_and_managing_networking/getting-started-with-multipath-tcp_configuring-and-managing-networking
-- **SUSE:** https://www.suse.com/security/cve/CVE-2026-98432.html (important; fixed kernel-default at least 6.12.0-160000.40.1 for SLE 16.0 and SLE Micro 6.2, 6.4.0-150600.23.143.1 for SLES 15 SP6 LTSS, 5.14.21-150500.55.195.1 for SLES 15 SP5 LTSS and Micro 5.5, 5.14.21-150400.24.246.1 for SLES 15 SP4 LTSS and Micro 5.3 and 5.4; SLES 15 SP7 in progress; SLE Micro 6.0 and 6.1, SLES 12 SP5 LTSS and SLES 15 SP1 to SP3 LTSS affected; SLE 11 SP4 not affected; no live patch listed. SUSE-SU-2026:24386-1 and SUSE-SU-2026:24422-1 are dated 24 October, and SUSE's CVE page lists them on 29 October)
-- **Amazon Linux:** https://explore.alas.aws.amazon.com/CVE-2026-98432.html (Important, CVSS 8.1; AL2023 kernel6.12 fixed in 6.12.113-138.209.amzn2023, ALAS2023-2026-3335, and kernel6.18 in 6.18.56-125.164.amzn2023, ALAS2023-2026-3251; the AL2023 package named "kernel" (6.1) and AL2 are pending, and AL2 is marked end of support; no live patch)
-- **Oracle Linux:** https://linux.oracle.com/cve/CVE-2026-98432.html (UEK fixed 16 October 2026: ELSA-2026-500397 for UEK R6 5.4.17-2136.360.3.1, ELSA-2026-500398 for UEK R7 5.15.0-325.221.6.4 and ELSA-2026-500399 for UEK R8 6.12.0-207.111.5.4; Ksplice updates on 19 October 2026; RHCK pending)
+- **SUSE:** https://www.suse.com/security/cve/CVE-2026-98432.html (important; fixed kernel-default at least 6.12.0-160000.40.1 for SLE 16.0 and SLE Micro 6.2, 6.4.0-150700.53.90.1 for SLES 15 SP7, 6.4.0-150600.23.143.1 for SLES 15 SP6 LTSS, 5.14.21-150500.55.195.1 for SLES 15 SP5 LTSS and Micro 5.5, 5.14.21-150400.24.246.1 for SLES 15 SP4 LTSS and Micro 5.3 and 5.4; SLE Micro 6.0 and 6.1 released; SLES 12 SP5 in progress; live patches for SLE 12 SP5 and 15 SP4 to SP7; SLE 11 SP4 not affected)
+- **Amazon Linux:** https://explore.alas.aws.amazon.com/CVE-2026-98432.html (Important, CVSS 8.1; AL2023 kernel6.12 6.12.113-138.209.amzn2023 (ALAS2023-2026-3335), kernel6.18 6.18.56-125.164.amzn2023 (ALAS2023-2026-3251) and kernel 6.1.189-236.400 (ALAS2023-2026-3365); AL2 kernel 4.14.355-287.758 (ALAS2-2026-4065) and the 5.4, 5.10 and 5.15 extras; AL2 is marked end of support; no live patch)
+- **Oracle Linux:** https://linux.oracle.com/cve/CVE-2026-98432.html (UEK fixed 16 October 2026: ELSA-2026-500397 for UEK R6 5.4.17-2136.360.3.1, ELSA-2026-500398 for UEK R7 5.15.0-325.221.6.4 and ELSA-2026-500399 for UEK R8 6.12.0-207.111.5.4, then newer UEK errata ELSA-2026-500572 to -500574 on 2 November; RHCK fixed on 2 November: ELSA-2026-93414, -93412 and -93413; Ksplice updates on 19 October 2026)
 - **Microsoft (Azure Linux):** https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-98432 (Azure Linux 3.0 kernel 6.6.159.1-1.azl3, in the production repository since 20 October 2026; Azure Linux 4.0 under investigation; customer action required)
-- **Alpine:** https://security.alpinelinux.org/vuln/CVE-2026-98432 (the tracker has no package data yet; linux-lts 6.12.114 on 3.21 and 3.22 and 6.18.59 on 3.23, 3.24 and edge are at or above the fix (inferred))
-- **GKE security bulletins:** https://cloud.google.com/kubernetes-engine/security-bulletins (none names the CVE)
-- **Container-Optimized OS release notes:** https://cloud.google.com/container-optimized-os/docs/release-notes (m121, m125 and m129 at the fix (inferred), m113, m117 and m133 below it (inferred))
-- **EKS AMI releases:** https://github.com/awslabs/amazon-eks-ami/releases (AL2023 AMI v20261026 ships fixed 6.12 and 6.18 kernels, its 6.1.189 variant is not fixed)
-- **Bottlerocket releases:** https://github.com/bottlerocket-os/bottlerocket/releases (kernel-kit 9.6.1 has the fixed builds, v1.68.0 still uses 9.6.0, so it is pending)
-- **AKS releases:** https://github.com/Azure/AKS/releases (node image 202610.16.1 runs kernels below the fix, pending)
+- **Alpine:** https://security.alpinelinux.org/vuln/CVE-2026-98432 (the tracker still has no package data; linux-lts 6.12.114 on 3.21 and 3.22 and 6.18.59 on 3.23, 3.24 and edge are at or above the fix (inferred))
+- **GKE security bulletins:** https://cloud.google.com/kubernetes-engine/security-bulletins (none names the CVE on 4 November)
+- **Container-Optimized OS release notes:** https://cloud.google.com/container-optimized-os/docs/release-notes (the m121, m125, m129 and m133 notes name the fix, m133 in cos-133-19999-44-174)
+- **EKS AMI releases:** https://github.com/awslabs/amazon-eks-ami/releases (AL2023 AMI v20261031 fixed, per AWS bulletin 2026-160-AWS)
+- **Bottlerocket releases:** https://github.com/bottlerocket-os/bottlerocket/releases (v1.68.1, 2 November 2026, with kernel-kit 9.6.2, has the fix)
+- **AKS releases:** https://github.com/Azure/AKS/releases (node image 202610.23.0 rolled out, kernels not confirmed; 202610.16.1 was below the fix)
 - **Flatcar releases:** https://www.flatcar.org/releases (stable 4757.2.2 and later, LTS 4081.3.11 and later, fixed (inferred))
 - **Talos releases:** https://github.com/siderolabs/talos/releases (v1.14.3 and later, fixed (inferred))
-- Fedora 43 and 44 kernel 7.2.13, Arch linux 7.2.11 and Arch linux-lts 6.18.59 are fixed (inferred from their kernel versions). AlmaLinux 8, 9 and 10 and Rocky Linux 8, 9 and 10 had no advisory yet and follow RHEL
+- Fedora 44 kernel 7.2.15, Arch linux 7.2.14 and Arch linux-lts 6.18.60 are fixed (inferred from their kernel versions). CentOS Stream 9 and 10 had no fixed kernel on 4 November
 
 ### Emergency support contacts
 
@@ -2197,13 +2245,12 @@ NO UPSTREAM FIX (vendor backport only):
 NOT AFFECTED:
   Kernels older than 4.4, RHEL 6 and 7, SLE 11 SP4, Ubuntu 14.04
 
-NO RELEASED FIX AT CUT-OFF (30 October 2026, 06:30 UTC):
-  (partial list)
-  Ubuntu 22.04 and later (pending), 20.04 and older (needed),
-  RHEL 8, 9 and 10 and their rebuilds (AlmaLinux, Rocky Linux),
-  Oracle RHCK, SLES 15 SP7 (in progress), Amazon Linux 2, the
-  AL2023 package named kernel (6.1), the latest AKS node image
-  and the latest Bottlerocket release
+NO RELEASED FIX ON 4 NOVEMBER 2026 (partial list):
+  Ubuntu 22.04 and later (in testing), 20.04 and older
+  (needed), OpenShift 4, CentOS Stream 9 and 10, SLES 12 SP5
+  (in progress). AKS node image: kernels not confirmed
+  RHEL 8, 9 and 10, Rocky, AlmaLinux, Oracle RHCK, SLES 15 SP7,
+  Amazon Linux 2, EKS and Bottlerocket are fixed now
 
 ---------------------------------------------------------------
 YOU ARE EXPOSED WHEN ALL OF THESE ARE TRUE:
@@ -2249,8 +2296,8 @@ IMMEDIATE ACTIONS:
 4. CAN'T PATCH TODAY? These are bridges, not fixes.
 
    a) Drop inbound IPv4 TCP packets that carry IP options.
-      A Go team member says this "may suffice" (Go issue
-      82717). Unconfirmed.
+      Red Hat recommends it, and says it reduces exposure
+      but cannot fully prevent an attack.
       Count first, then enforce:
 
       # run as root
@@ -2310,17 +2357,17 @@ WHAT TO WATCH (the reporters' pattern; they published no exploit code):
   Clean logs prove nothing. A lost race leaves no crash
 
 ---------------------------------------------------------------
-THREAT LEVEL (30 October 2026, 06:30 UTC):
+THREAT LEVEL (4 November 2026):
 ---------------------------------------------------------------
 
   No exploitation in the wild reported
   Reporters' write-up (27 October): remote root command execution
   against servers with an MPTCP listener. 48 minutes to leak a
   kernel pointer, 5 more to run a command
-  The reporters published no exploit code. 11 GitHub
-  repositories named after the CVE, none verified: do not run them
-  Not in CISA KEV. EPSS 0.00388 (32.8th percentile)
-  Go security team: the bug is not specific to MPTCP
+  The reporters published no exploit code. 71 GitHub
+  repositories mention the CVE, none verified: do not run them
+  Not in CISA KEV. EPSS 0.0076 (55.3rd percentile)
+  Red Hat: MPTCP is not a precondition. Now 9.8 Critical
 
 ---------------------------------------------------------------
 IF COMPROMISED:
@@ -2353,8 +2400,8 @@ MORE INFORMATION:
               is not fixed. Patch, then reboot.
 ===============================================================
 
-Document Version: 1.0
-Last Updated: 4 November 2026 (name only)
+Document Version: 1.1
+Last Updated: 4 November 2026
 Classification: TLP:CLEAR, public distribution
 ```
 
@@ -2370,23 +2417,27 @@ Classification: TLP:CLEAR, public distribution
 
 - You're fixed for this CVE
 - Keep the detection rules on: inbound TCP with IP options, kernel crash signs
-- If you use CALIPSO, watch for the separate IPv6 patch, which has no maintainer patch yet
+- If you use CALIPSO, watch for the separate IPv6 patch, posted on 3 November and still under review on 4 November
 - Ignore a scanner that judges vendor kernels by the upstream version alone
 
 **If you run an unpatched kernel and accept inbound IPv4 TCP from the internet:**
 
 - Patch and reboot today, internet-facing hosts with MPTCP listeners or Go services first
-- Where a reboot has to wait, apply the IP options filter (may suffice, unconfirmed) and turn MPTCP off. Both are bridges, not fixes
+- Where a reboot has to wait, apply the IP options filter (Red Hat says it reduces exposure but can't fully prevent an attack) and turn MPTCP off. Both are bridges, not fixes
 - Check your kernel logs and network telemetry as far back as retention allows
 
-**If you run Ubuntu, RHEL 8, 9 or 10, or a rebuild such as AlmaLinux or Rocky Linux:**
+**If you run Ubuntu:**
 
-- At cut-off the fix had not been released: Ubuntu's was prepared and pending, and Red Hat had no fix or RHSA and says no mitigation meets its criteria
-- Apply the stopgaps, watch the vendor, and patch and reboot the day the fix ships
+- The fix was still in testing (-proposed) on 4 November, with no Ubuntu Security Notice
+- Apply the stopgaps, watch Ubuntu's page, and patch and reboot the day the update is released
+
+**If you run RHEL 8, 9 or 10, or a rebuild such as AlmaLinux, Rocky Linux or Oracle's Red Hat compatible kernel:**
+
+- The fix shipped between 1 and 3 November. Install it and reboot. OpenShift 4 was still listed as affected on 4 November
 
 **If a cloud or managed Kubernetes service runs your nodes:**
 
-- Get a written answer about the kernel your nodes run, and roll the nodes onto a fixed image. At cut-off EKS AL2023 AMI v20261026 had fixed 6.12 and 6.18 kernels, while the latest AKS node image and Bottlerocket release did not
+- Get a written answer about the kernel your nodes run, and roll the nodes onto a fixed image. On 4 November the EKS AL2023 AMI v20261031 and Bottlerocket v1.68.1 were fixed, and the kernels of the newest AKS node image weren't confirmed
 
 **If you run an end-of-life kernel, a distribution with no fix or an appliance waiting on its vendor:**
 
@@ -2399,7 +2450,7 @@ Classification: TLP:CLEAR, public distribution
 
 ### Takeaway for leadership
 
-CVE-2026-98432 is easy to underestimate and hard to scope. Its severity label depends on who you ask: the kernel.org CNA says 9.8 and the distributions say 8.1, and the gap is whether the timing race is hard. The reporters say a lost race only fails the handshake, so an attacker can retry. Exposure depends on things most teams haven't mapped: which hosts accept inbound IPv4 TCP directly, whether a proxy that terminates TCP sits in front, and which services open MPTCP listeners (Go programs whose go.mod says go 1.24 or later do by default). Whether code execution works without an MPTCP listener is not known publicly. The Go security team says similar attacks may be possible, so don't wait for that answer. The timing is not in dispute. The fix and its explanation were public from 29 September 2026, 16 days before the CVE record and 28 days before the reporters' write-up. A fix needs a reboot, so a host stays exposed until it restarts, and at cut-off Ubuntu and Red Hat had released no fix.
+CVE-2026-98432 is easy to underestimate and hard to scope. Its severity label depends on who you ask: the kernel.org CNA and now Red Hat say 9.8, SUSE, Amazon and Oracle still say 8.1, and the gap is whether the timing race is hard. The reporters say a lost race only fails the handshake, so an attacker can retry. Exposure depends on things most teams haven't mapped: which hosts accept inbound IPv4 TCP directly, whether a proxy that terminates TCP sits in front, and which services open MPTCP listeners (Go programs whose go.mod says go 1.24 or later do by default). Whether code execution works without an MPTCP listener is not known publicly. The Go security team says similar attacks may be possible, so don't wait for that answer. The timing is not in dispute. The fix and its explanation were public from 29 September 2026, 16 days before the CVE record and 28 days before the reporters' write-up. A fix needs a reboot, so a host stays exposed until it restarts. Red Hat shipped 17 days after the CVE record, and on day 20 Ubuntu's fix was still in testing.
 
 Use the incident to fix four things:
 
@@ -2413,7 +2464,7 @@ Use the incident to fix four things:
 - The fix and its explanation were public 16 days before the CVE record and 28 days before the reporters' write-up
 - A patch only counts once the host has rebooted
 - Vendor kernels keep their own version numbers, so judge them by the vendor's advisory
-- Turning MPTCP off closes only the demonstrated path, and the IP options filter "may suffice", which is unconfirmed
+- Turning MPTCP off closes only the demonstrated path, and the IP options filter reduces exposure without fully preventing an attack
 - A TCP-terminating proxy shields an origin only while the origin is locked to it
 - Clean logs prove little: a lost race leaves no crash
 - Don't run the public repositories named after the CVE
@@ -2423,9 +2474,9 @@ Use the incident to fix four things:
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 4 November 2026 (name added, facts unchanged since the data cut-off)
-**Data cut-off:** 30 October 2026, 06:30 UTC
+**Document Version:** 1.1
+**Last Updated:** 4 November 2026
+**Data cut-off:** 4 November 2026, 14:00 UTC (version 1.0: 30 October 2026, 06:30 UTC)
 **Classification:** TLP:CLEAR, public distribution
 **Prepared by:** 0xDTC (TheSecureLancer)
 
