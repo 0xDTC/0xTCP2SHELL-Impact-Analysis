@@ -942,7 +942,7 @@ bpftool prog show | grep sk_reuseport
 | A listener in the `ss -Mlnp` output | An MPTCP listener, the demonstrated path to code execution | Patch first. Turn MPTCP off as a stopgap |
 | A Go binary whose module declares go 1.24 or later and shows no `multipathtcp=0` | Opens MPTCP listeners by default where the kernel allows it | Same as above, and set the Go switch (see Go build and deploy policy under DEFENSE-IN-DEPTH MEASURES) |
 | Any `sk_reuseport` program in the `bpftool prog show` output | A candidate for request migration, the second path. The tool cannot show whether the program is the migrating kind | Treat every one as a candidate. Keep `net.ipv4.tcp_migrate_req` at 0 |
-| Only plain TCP listeners | Still exposed to the underlying bug. Nobody has publicly shown code execution without an MPTCP listener (Go issue 82717) | Patch on the same schedule, after the MPTCP hosts |
+| Only plain TCP listeners | Still exposed to the underlying bug. Red Hat says having MPTCP enabled is not a precondition (bulletin RHSB-2026-016). Nobody has publicly shown code execution without an MPTCP listener (Go issue 82717) | Patch on the same schedule, after the MPTCP hosts |
 
 Reading `go version -m` output:
 
@@ -951,7 +951,7 @@ Reading `go version -m` output:
 
 Containers share the host kernel, so the unit of inventory is the node. A scan of an image looks at files, not at the kernel the container will run on. The MPTCP setting is per network namespace, so list the container PIDs on each node with your container runtime and run the nsenter command for each one.
 
-*Sources: kernel.org CVE record, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux and Oracle advisories, Linux kernel documentation, Go godebug documentation, Go security team announcement (29 October 2026), Go issue 82717*
+*Sources: kernel.org CVE record, Debian, Ubuntu, Red Hat, SUSE, Amazon Linux and Oracle advisories, Linux kernel documentation, Go godebug documentation, Go security team announcement (29 October 2026), Go issue 82717, Red Hat bulletin RHSB-2026-016*
 
 **Network detection:**
 
@@ -2401,7 +2401,7 @@ MORE INFORMATION:
 ===============================================================
 
 Document Version: 1.1
-Last Updated: 4 November 2026
+Last Updated: 5 November 2026
 Classification: TLP:CLEAR, public distribution
 ```
 
@@ -2475,7 +2475,7 @@ Use the incident to fix four things:
 ---
 
 **Document Version:** 1.1
-**Last Updated:** 4 November 2026
+**Last Updated:** 5 November 2026
 **Data cut-off:** 4 November 2026, 14:00 UTC (version 1.0: 30 October 2026, 06:30 UTC)
 **Classification:** TLP:CLEAR, public distribution
 **Prepared by:** 0xDTC (TheSecureLancer)
